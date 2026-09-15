@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hagen-varsler",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  // Kjøres hver hele time. Workeren sjekker selv om klokka har passert ønsket tidspunkt i din tidssone.
+  "triggers": { "crons": ["0 * * * *"] },
+  "kv_namespaces": [
+    {
+      "binding": "SCHEDULES",
+      // Kjør `npx wrangler kv namespace create SCHEDULES` og lim inn id-en her.
+      "id": "FYLL_INN_KV_ID"
+    }
+  ],
+  "vars": {
+    // Kjør `npm run vapid` og lim inn den offentlige nøkkelen her. Den private legges inn som secret.
+    "VAPID_PUBLIC_KEY": "FYLL_INN_OFFENTLIG_NOKKEL",
+    "VAPID_SUBJECT": "mailto:din@epost.no"
+  }
+}
