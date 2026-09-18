@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Bell, BellOff, Download, Upload, Loader2, Share, CheckCircle2, Info, Sparkles, Camera, Copy, Check } from "lucide-react";
+import { ArrowLeft, Download, Upload, Loader2, CheckCircle2, Sparkles, Camera, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,11 +13,8 @@ import { Page, Section } from "@/components/page";
 import { Field, NativeSelect } from "@/components/fields";
 import { db } from "@/lib/db";
 import { saveSettings } from "@/lib/settings";
-import { useClientValue } from "@/lib/hooks";
 import { CLIMATE_ZONES, DEFAULT_SETTINGS, type Settings } from "@/lib/types";
-import { disablePush, enablePush, isStandalone, pushSupported, sendTestNotification, syncSchedule } from "@/lib/push";
 import { exportAll, importAll, shareOrDownload } from "@/lib/export";
-import { formatDate } from "@/lib/dates";
 import { listModels, LLM_PRESETS } from "@/lib/llm-client";
 import { PLANTNET_SITE_URL } from "@/lib/plant-id";
 
@@ -58,8 +55,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [location, setLocation] = useState(settings.location ?? "");
   const [mapWidth, setMapWidth] = useState(String(settings.mapWidth));
   const [mapHeight, setMapHeight] = useState(String(settings.mapHeight));
-  const [pushUrl, setPushUrl] = useState(settings.pushServerUrl ?? "");
-  const [pushKey, setPushKey] = useState(settings.pushServerKey ?? "");
   const [llmPreset, setLlmPreset] = useState(() => LLM_PRESETS.find((p) => p.baseUrl === settings.llmBaseUrl)?.id ?? (settings.llmBaseUrl ? "custom" : "gemini"));
   const [llmBaseUrl, setLlmBaseUrl] = useState(settings.llmBaseUrl ?? LLM_PRESETS[0].baseUrl);
   const [llmApiKey, setLlmApiKey] = useState(settings.llmApiKey ?? "");
@@ -78,8 +73,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
-  const standalone = useClientValue(isStandalone, true);
-  const supported = useClientValue(pushSupported, true);
 
   function flash(kind: "ok" | "error", text: string) {
     setMessage({ kind, text });
@@ -97,15 +90,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
       setBusy(null);
     }
   }
-
-  async function togglePush(on: boolean) {
-    const current = { ...settings, pushServerUrl: pushUrl.trim() || undefined, pushServerKey: pushKey.trim() || undefined };
-    await saveSettings({ pushServerUrl: current.pushServerUrl, pushServerKey: current.pushServerKey });
-    if (on) await run("push", () => enablePush(current), "Varsler er slått på.");
-    else await run("push", () => disablePush(current), "Varsler er slått av.");
-  }
-
-  const pushOn = !!settings.pushSubscription;
 
   return (
     <>
@@ -187,95 +171,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
                 />
               </Field>
             </div>
-            )}
-          </Card>
-        </Section>
-
-        <Section title="Varsler">
-          <Card className="gap-4 px-4">
-            {!supported && (
-              <Notice icon={<Info className="size-4" />}>
-                Denne nettleseren støtter ikke push-varsler. På iPhone må appen legges til på Hjem-skjermen først.
-              </Notice>
-            )}
-            {supported && !standalone && (
-              <Notice icon={<Share className="size-4" />}>
-                Legg appen til på Hjem-skjermen (Del-knappen → «Legg til på Hjem-skjerm») og åpne den derfra for å kunne slå på varsler.
-              </Notice>
-            )}
-
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className={`flex size-10 items-center justify-center rounded-full ${pushOn ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
-                  {pushOn ? <Bell className="size-5" /> : <BellOff className="size-5" />}
-                </span>
-                <div>
-                  <p className="text-sm font-medium">Månedlige påminnelser</p>
-                  <p className="text-xs text-muted-foreground">
-                    {pushOn ? `På · sist oppdatert ${settings.pushLastSync ? formatDate(settings.pushLastSync, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "aldri"}` : "Av"}
-                  </p>
-                </div>
-              </div>
-              {busy === "push" ? (
-                <Loader2 className="size-5 animate-spin text-muted-foreground" />
-              ) : (
-                <Switch checked={pushOn} onCheckedChange={(v) => togglePush(v)} disabled={!supported || (!pushOn && !pushUrl.trim())} />
-              )}
-            </div>
-
-            <Field label="Varselserver" htmlFor="push-url" hint="Adressen til Cloudflare Worker-en du satte opp (se README i prosjektet).">
-              <Input
-                id="push-url"
-                value={pushUrl}
-                onChange={(e) => setPushUrl(e.target.value)}
-                onBlur={() => saveSettings({ pushServerUrl: pushUrl.trim() || undefined })}
-                placeholder="https://hagen-varsler.dittnavn.workers.dev"
-                inputMode="url"
-                autoCapitalize="none"
-                className="h-11 rounded-lg"
-              />
-            </Field>
-            <Field label="Nøkkel (valgfritt)" htmlFor="push-key" hint="Samme verdi som APP_SECRET på serveren.">
-              <div className="flex gap-2">
-                <Input
-                  id="push-key"
-                  value={pushKey}
-                  onChange={(e) => setPushKey(e.target.value)}
-                  onBlur={() => saveSettings({ pushServerKey: pushKey.trim() || undefined })}
-                  type="password"
-                  autoCapitalize="none"
-                  className="h-11 rounded-lg"
-                />
-                <CopyButton value={pushKey.trim()} />
-              </div>
-            </Field>
-            <Field label="Tidspunkt" htmlFor="push-hour">
-              <NativeSelect
-                id="push-hour"
-                value={settings.notifyHour}
-                onChange={async (e) => {
-                  await saveSettings({ notifyHour: Number(e.target.value) });
-                  const s = await db.settings.get("settings");
-                  if (s?.pushSubscription) syncSchedule(s).catch(() => undefined);
-                }}
-              >
-                {Array.from({ length: 16 }, (_, i) => i + 6).map((h) => (
-                  <option key={h} value={h}>
-                    kl. {String(h).padStart(2, "0")}:00
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
-
-            {pushOn && (
-              <div className="flex gap-2">
-                <Button variant="outline" className="h-11 flex-1 rounded-xl" disabled={busy !== null} onClick={() => run("sync", () => syncSchedule(settings), "Varselplanen er oppdatert.")}>
-                  Oppdater plan
-                </Button>
-                <Button variant="outline" className="h-11 flex-1 rounded-xl" disabled={busy !== null} onClick={() => run("test", () => sendTestNotification(settings), "Testvarsel sendt.")}>
-                  Send testvarsel
-                </Button>
-              </div>
             )}
           </Card>
         </Section>
@@ -536,19 +431,10 @@ function SettingsForm({ settings }: { settings: Settings }) {
               <CheckCircle2 className="size-4 text-primary" /> Hagen, versjon 0.1
             </p>
             <p>Stell-kalenderen er laget for norsk klima og er et utgangspunkt. Juster oppgaver og måneder så de passer hagen din.</p>
-            <p>Bilder og data forlater aldri telefonen, bortsett fra varselplanen (oppgavetitler og datoer) som sendes til din egen varselserver.</p>
+            <p>Bilder og data lagres på telefonen. Har du satt opp KI-leverandør eller Pl@ntNet, sendes planteopplysninger, spørsmål og bildene du identifiserer dit.</p>
           </Card>
         </Section>
       </Page>
     </>
-  );
-}
-
-function Notice({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-2 rounded-xl bg-muted px-3 py-2.5 text-xs text-muted-foreground">
-      <span className="mt-0.5 shrink-0">{icon}</span>
-      <span>{children}</span>
-    </div>
   );
 }

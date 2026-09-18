@@ -67,7 +67,7 @@ export async function exportAll(): Promise<Blob> {
     areas,
     rules,
     completions,
-    settings: settings ? { ...settings, pushSubscription: undefined, pushLastSync: undefined } : undefined,
+    settings,
     photos: exportedPhotos,
     background: background ? { ...background, type: background.blob.type || "image/jpeg", blob: await blobToBase64(background.blob) } : undefined,
     assets: exportedAssets,
@@ -101,16 +101,7 @@ export async function importAll(file: Blob): Promise<{ plants: number; photos: n
     await db.rules.bulkPut(data.rules);
     await db.completions.bulkPut(data.completions);
     await db.photos.bulkPut(photos);
-    if (data.settings) {
-      const current = await db.settings.get("settings");
-      await db.settings.put({
-        ...data.settings,
-        id: "settings",
-        pushSubscription: current?.pushSubscription,
-        pushServerUrl: current?.pushServerUrl ?? data.settings.pushServerUrl,
-        pushServerKey: current?.pushServerKey ?? data.settings.pushServerKey,
-      });
-    }
+    if (data.settings) await db.settings.put({ ...data.settings, id: "settings" });
   });
   return { plants: data.plants.length, photos: photos.length };
 }

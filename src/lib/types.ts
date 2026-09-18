@@ -214,11 +214,6 @@ export interface Settings {
   climateZone?: string;
   mapWidth: number;
   mapHeight: number;
-  notifyHour: number;
-  pushServerUrl?: string;
-  pushServerKey?: string;
-  pushSubscription?: PushSubscriptionJSON;
-  pushLastSync?: number;
   seededRules?: boolean;
   /** KI-leverandør med OpenAI-kompatibelt API (Gemini, Groq, OpenRouter ...). Nøkkelen lagres bare på denne enheten. */
   llmBaseUrl?: string;
@@ -260,7 +255,6 @@ export const DEFAULT_SETTINGS: Settings = {
   climateZone: "H3",
   mapWidth: 30,
   mapHeight: 20,
-  notifyHour: 8,
 };
 
 export const CLIMATE_ZONES = ["H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8"] as const;

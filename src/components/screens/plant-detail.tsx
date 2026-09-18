@@ -24,7 +24,6 @@ import { quantityInBed } from "@/lib/beds";
 import { nextDueYear, rulesForPlant } from "@/lib/tasks";
 import { categoryInfo, MONTHS_NB_SHORT, plantTitle, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod, type ToxicityLevel } from "@/lib/types";
 import { currentYear, formatDate } from "@/lib/dates";
-import { scheduleSyncSoon } from "@/lib/sync";
 import { isPlaced, polylineLength } from "@/lib/geometry";
 import { factsFor } from "@/lib/plant-facts";
 import { capitalize } from "@/lib/plant-lookup";
@@ -64,7 +63,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
       for (const rid of ruleIds) await db.completions.where("ruleId").equals(rid).delete();
       await db.plants.delete(plant!.id);
     });
-    scheduleSyncSoon();
     router.replace("/planter/");
   }
 
@@ -201,7 +199,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
                           // Skru av en kategoriregel for bare denne planten ved å lage en deaktivert planteregel med samme nøkkel.
                           await db.rules.add({ ...r, id: crypto.randomUUID(), scope: "plant", plantId: plant.id, category: undefined, enabled: v, source: "egen", createdAt: Date.now() });
                         }
-                        scheduleSyncSoon();
                       }}
                       aria-label={`Slå ${r.enabled ? "av" : "på"} ${r.title}`}
                       className="mt-1"

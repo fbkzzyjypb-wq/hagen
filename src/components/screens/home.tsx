@@ -4,13 +4,12 @@ import { EMPTY } from "@/lib/hooks";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Map as MapIcon, ChevronRight, Bell, Camera, Sprout, Settings } from "lucide-react";
+import { Plus, Map as MapIcon, ChevronRight, Camera, Sprout, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { GardenPreview } from "@/components/garden-preview";
 import { Page, Section } from "@/components/page";
-import { TaskRow } from "@/components/task-row";
 import { AskClaudeButton } from "@/components/ask-claude";
 import { PlantForm } from "@/components/plant-form";
 import { BlobImage } from "@/components/blob-image";
@@ -26,7 +25,6 @@ export function HomeScreen() {
   const settings = useSettings();
   const plants = useLiveQuery(() => db.plants.toArray(), []) ?? EMPTY;
   const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
-  const completions = useLiveQuery(() => db.completions.where("year").equals(currentYear()).toArray(), []) ?? EMPTY;
   const recentPhotos = useLiveQuery(() => db.photos.orderBy("takenAt").reverse().limit(8).toArray(), []) ?? EMPTY;
   const photoCount = useLiveQuery(() => db.photos.count(), []) ?? 0;
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
@@ -35,10 +33,7 @@ export function HomeScreen() {
 
   const month = currentMonth();
   const year = currentYear();
-  const tasks = useMemo(() => tasksForMonth(month, year, rules, plants, completions), [month, year, rules, plants, completions]);
-  const open = tasks.filter((t) => !t.done);
-  const done = tasks.length - open.length;
-  const progress = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+  const tasks = useMemo(() => tasksForMonth(month, year, rules, plants), [month, year, rules, plants]);
   const plantById = useMemo(() => new Map(plants.map((p) => [p.id, p])), [plants]);
   const onMap = plants.filter(isPlaced).length;
 
@@ -63,45 +58,18 @@ export function HomeScreen() {
           </div>
         )}
         <Card className="overflow-hidden border-0 bg-primary text-primary-foreground ring-0 [--card-spacing:--spacing(5)]">
-          <div className="flex flex-col gap-4 px-(--card-spacing)">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-sm font-medium text-primary-foreground/80">Oppgaver i {monthName(month)}</p>
-                <p className="mt-0.5 font-heading text-3xl font-semibold tracking-tight">
-                  {tasks.length === 0 ? "Ingenting planlagt" : open.length === 0 ? "Alt er gjort" : `${open.length} å gjøre`}
-                </p>
-              </div>
-              <Link href="/oppgaver/" className="mt-1 flex items-center gap-0.5 text-sm font-medium text-primary-foreground/90">
-                Alle <ChevronRight className="size-4" />
-              </Link>
+          <div className="flex items-start justify-between px-(--card-spacing)">
+            <div>
+              <p className="text-sm font-medium text-primary-foreground/80">Oppgaver i hagen · {monthName(month)}</p>
+              <p className="mt-0.5 font-heading text-3xl font-semibold tracking-tight">
+                {tasks.length === 0 ? "Ingenting planlagt" : `${tasks.length} forslag`}
+              </p>
             </div>
-            {tasks.length > 0 && (
-              <div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-primary-foreground/25">
-                  <div className="h-full rounded-full bg-primary-foreground transition-all" style={{ width: `${progress}%` }} />
-                </div>
-                <p className="mt-2 text-xs text-primary-foreground/80">
-                  {done} av {tasks.length} gjort
-                </p>
-              </div>
-            )}
+            <Link href="/oppgaver/" className="mt-1 flex items-center gap-0.5 text-sm font-medium text-primary-foreground/90">
+              Alle <ChevronRight className="size-4" />
+            </Link>
           </div>
         </Card>
-
-        {open.length > 0 && (
-          <Card className="mt-3 py-1">
-            <ul className="divide-y divide-border">
-              {open.slice(0, 4).map((t) => (
-                <TaskRow key={t.key} task={t} compact />
-              ))}
-            </ul>
-            {open.length > 4 && (
-              <Link href="/oppgaver/" className="block border-t border-border px-4 py-2.5 text-center text-sm font-medium text-primary">
-                Se {open.length - 4} til
-              </Link>
-            )}
-          </Card>
-        )}
 
         <div className={`mt-4 grid gap-2 ${settings.showMap ? "grid-cols-3" : "grid-cols-2"}`}>
           <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" onClick={() => setAddOpen(true)}>
@@ -123,19 +91,6 @@ export function HomeScreen() {
         <div className="mt-3">
           <AskClaudeButton className="h-12 w-full rounded-2xl text-base" />
         </div>
-
-        {!settings.pushSubscription && (
-          <Link href="/innstillinger/" className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-            <span className="flex size-10 items-center justify-center rounded-full bg-accent text-accent-foreground">
-              <Bell className="size-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">Slå på varsler</span>
-              <span className="block text-xs text-muted-foreground">Få beskjed når det er tid for beskjæring, frø og kompost.</span>
-            </span>
-            <ChevronRight className="size-5 text-muted-foreground/60" />
-          </Link>
-        )}
 
         {recentPhotos.length > 0 && (
           <Section title="Siste bilder">

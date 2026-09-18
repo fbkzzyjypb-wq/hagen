@@ -9,7 +9,6 @@ import { Field, MonthPicker, NativeSelect } from "@/components/fields";
 import { db } from "@/lib/db";
 import { newId } from "@/lib/id";
 import { PLANT_CATEGORIES, type CareRule, type Plant, type PlantCategory, type RuleScope, plantTitle } from "@/lib/types";
-import { scheduleSyncSoon } from "@/lib/sync";
 
 type Props = {
   open: boolean;
@@ -58,7 +57,6 @@ function RuleFormBody({ onOpenChange, plant, rule, plants = [] }: Omit<Props, "o
       createdAt: rule?.createdAt ?? Date.now(),
     };
     await db.rules.put(base);
-    scheduleSyncSoon();
     onOpenChange(false);
   }
 
@@ -66,7 +64,7 @@ function RuleFormBody({ onOpenChange, plant, rule, plants = [] }: Omit<Props, "o
     <>
         <SheetHeader className="px-0">
           <SheetTitle className="text-lg">{rule ? "Rediger oppgave" : "Ny oppgave"}</SheetTitle>
-          <SheetDescription>Oppgaven gjentas hvert år i månedene du velger, og du får varsel ved månedsstart.</SheetDescription>
+          <SheetDescription>Oppgaven gjentas hvert år i månedene du velger.</SheetDescription>
         </SheetHeader>
 
         <form

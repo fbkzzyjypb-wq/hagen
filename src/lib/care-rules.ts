@@ -141,11 +141,53 @@ export const CATEGORY_RULES: Record<PlantCategory, RuleTemplate[]> = {
   annet: [],
 };
 
-/** Oppgaver som gjelder hele hagen, uavhengig av planter. */
+/**
+ * Oppgaver som gjelder hele hagen, uavhengig av planter. Månedsoversikten er tilpasset et mildt, vindutsatt kystklima:
+ * våren kommer tidlig og høsten varer lenge, men vind, regn og sen nattefrost i mai er typiske utfordringer.
+ */
 export const GARDEN_RULES: RuleTemplate[] = [
-  { key: "planlegg", title: "Planlegg sesongen og bestill frø", months: [1, 2] },
-  { key: "redskap", title: "Sjekk og slip redskap", months: [2] },
+  // Januar
+  { key: "planlegg", title: "Planlegg årets hage", description: "Bestill frø, sjekk hva som må erstattes, og lag en såplan.", months: [1] },
+  { key: "redskap", title: "Rens og slip redskap", description: "Sekatør, spade og gressklipperkniv.", months: [1] },
+  { key: "rist-sno", title: "Rist tung snø av busker og hekker", description: "Tung, våt snø kan knekke greiner.", months: [1] },
+  {
+    key: "sjekk-etter-storm",
+    title: "Sjekk støtter og bindinger etter storm",
+    description: "Se at vintersikring, støtter på unge trær og drivhuset har holdt seg.",
+    months: [1, 12],
+  },
+  // Februar
+  {
+    key: "beskjar-eple-paere",
+    title: "Beskjær eple og pære",
+    description: "På frostfrie dager. Unngå plomme og kirsebær nå, de beskjæres om sommeren.",
+    months: [2],
+  },
+  { key: "beskjar-baerbusker", title: "Beskjær bærbusker", description: "Solbær, stikkelsbær og andre bærbusker.", months: [2] },
+  {
+    key: "forkultiver-tidlig",
+    title: "Start forkultivering inne",
+    description: "Planter som trenger lang tid, som paprika, chili og selleri.",
+    months: [2],
+  },
+  { key: "vask-drivhus-var", title: "Vask drivhuset og vinduene", description: "Slipper inn mest mulig lys.", months: [2] },
+  // Mars
+  { key: "sa-tomater", title: "Så tomater og drivhusplanter inne", description: "Fra midten til slutten av måneden.", months: [3] },
+  { key: "klipp-ned-fjoraret", title: "Klipp ned fjorårets stauder og prydgress", months: [3] },
+  { key: "rak-vinterrester", title: "Rak ut løv og vinterrester", description: "Fra bed og plen.", months: [3] },
+  { key: "gjodsle-busker-var", title: "Gjødsle busker, hekker og bærbusker", description: "Når jorda begynner å tine.", months: [3] },
   { key: "vinterskader", title: "Sjekk vinterskader", description: "Se etter brekkskader, museskader og frostsprekker.", months: [3] },
+  // April
+  {
+    key: "plant-barrot",
+    title: "Plant barrotstrær, busker og hekk",
+    description: "Om våren mens plantene fortsatt er i dvale, og om høsten, som går fint i den milde kysthøsten.",
+    months: [4, 10],
+  },
+  { key: "sa-hardfore", title: "Så hardføre grønnsaker ute", description: "Erter, reddik, spinat, salat og gulrot.", months: [4] },
+  { key: "settepoteter", title: "Sett ut settepoteter", description: "Mot slutten av måneden.", months: [4] },
+  { key: "forste-plenklipp", title: "Første plenklipp", description: "Fjern eventuelt mose, og kalk og gjødsle plenen.", months: [4] },
+  { key: "del-flytt-stauder", title: "Del og flytt stauder", description: "De som har blitt for store.", months: [4] },
   { key: "fjern-vinterdekke", title: "Fjern vinterdekke", months: [4] },
   {
     key: "kompost-var",
@@ -153,12 +195,61 @@ export const GARDEN_RULES: RuleTemplate[] = [
     description: "Et lag på 3–5 cm moden kompost rundt plantene gir næring og holder på fukten.",
     months: [4],
   },
-  { key: "vann-torke", title: "Vann i tørkeperioder", description: "Vann sjelden og grundig, helst om morgenen.", months: [6, 7, 8] },
+  // Mai
+  { key: "plant-tomater", title: "Plant tomater i drivhuset", description: "Når nettene holder seg over ca. 10 °C inne.", months: [5] },
+  {
+    key: "herd-smaplanter",
+    title: "Herd av småplanter",
+    description: "Gradvis før utplanting. Vent med frostømfintlige planter til etter midten av måneden.",
+    months: [5],
+  },
+  { key: "luk", title: "Luk jevnlig", description: "Det lønner seg mens ugresset er lite.", months: [5] },
+  { key: "beskjar-varblomstrende", title: "Beskjær vårblomstrende busker", description: "F.eks. forsythia, rett etter blomstring.", months: [5] },
+  { key: "stotter-stauder", title: "Sett opp støtter for høye stauder", description: "Før de blir store og vinden tar dem.", months: [5] },
+  // Juni
+  { key: "vann-torke", title: "Vann i tørkeperioder", description: "Vann sjelden og grundig, helst morgen eller kveld.", months: [6, 7, 8] },
+  { key: "tjuv-tomater", title: "Tjuv og bind opp tomater", description: "Luft drivhuset godt på varme dager.", months: [6] },
+  { key: "klipp-hekk-forste", title: "Klipp hekken første gang", description: "Når vårskuddene har vokst ferdig.", months: [6] },
+  { key: "dekk-jorda", title: "Dekk jorda med gressklipp eller kompost", description: "Holder på fuktigheten.", months: [6] },
+  { key: "skadedyr", title: "Hold øye med skadedyr", description: "Snegler, bladlus og kålsommerfugl.", months: [6] },
+  // Juli
+  { key: "host-jevnlig", title: "Høst jevnlig", description: "Det gir mer avling: bær, salat, erter og squash.", months: [7] },
+  { key: "beskjar-steinfrukt", title: "Beskjær plomme- og kirsebærtrær", description: "Etter høsting.", months: [7] },
+  { key: "klipp-avblomstret", title: "Klipp av avblomstrede blomster", description: "Forlenger blomstringen.", months: [7] },
+  { key: "sa-nye-runder", title: "Så nye runder", description: "Salat, reddik og spinat.", months: [7] },
+  { key: "gjodsle-potter", title: "Gjødsle tomater og potteplanter", description: "Jevnlig, også andre planter i potter og drivhus.", months: [7] },
+  // August
+  { key: "ta-vare-pa-avling", title: "Høst og ta vare på avlingen", description: "Syltetøy, safting og frysing.", months: [8] },
+  { key: "klipp-hekk-siste", title: "Klipp hekken en siste gang", months: [8] },
+  { key: "sa-plen", title: "Så eller reparer plenen", description: "August–september er et godt tidspunkt.", months: [8] },
+  { key: "stiklinger", title: "Ta stiklinger", description: "F.eks. av rips, solbær og stauder.", months: [8] },
+  { key: "topp-tomater", title: "Topp tomatplantene", description: "Mot slutten av måneden, så de rekker å modne det som henger.", months: [8] },
+  // September
+  { key: "host-frukt-rot", title: "Høst epler, pærer og rotgrønnsaker", months: [9] },
+  { key: "plant-varlok-hage", title: "Plant vårløk", description: "Tulipaner, påskeliljer og krokus.", months: [9] },
+  { key: "plant-eviggronne", title: "Plant eviggrønne busker og stauder", description: "Jorda er fortsatt varm.", months: [9] },
+  { key: "rydd-drivhus", title: "Rydd drivhuset", description: "Når tomatsesongen er over. Ta ut syke planterester.", months: [9] },
+  { key: "fyll-kompost", title: "Start eller fyll opp kompostbingen", description: "Med løv og planterester.", months: [9] },
   { key: "tom-kompost", title: "Vend komposten", months: [5, 9] },
-  { key: "rak-lov", title: "Rak løv og fyll på komposten", months: [10] },
-  { key: "kompost-host", title: "Dekk bedene med kompost eller løv", months: [10, 11] },
+  // Oktober
+  { key: "rak-lov", title: "Rak løv", description: "Bruk det til kompost eller som dekke i bed.", months: [10] },
+  { key: "siste-plenklipp", title: "Siste plenklipp og høstgjødsling", description: "Høstgjødsle plenen med kaliumrik gjødsel.", months: [10] },
+  { key: "krukker-inn", title: "Ta inn eller beskytt krukker", description: "Gjelder også andre ømfintlige planter.", months: [10] },
+  {
+    key: "tom-slanger",
+    title: "Tøm regntønner og slanger",
+    description: "Tøm og rengjør før frosten kommer, og steng utekranene.",
+    months: [10],
+  },
+  // November
+  { key: "sikre-unge-traer", title: "Stake opp og sikre unge trær", description: "Mot vinterstormer.", months: [11] },
+  { key: "kompost-host", title: "Dekk bedene med løv, kompost eller bark", description: "Beskytter jord og røtter.", months: [11] },
+  { key: "vask-drivhus-host", title: "Vask og desinfiser drivhuset", description: "Grundig før vinteren.", months: [11] },
+  { key: "vinterlagre-redskap", title: "Rengjør og vinterlagre redskap", description: "Også gressklipperen.", months: [11] },
   { key: "vinterdekk", title: "Vinterdekk frostømfintlige planter", description: "Dekk med granbar eller fiberduk når kulda setter inn.", months: [11] },
-  { key: "tom-slanger", title: "Tøm slanger og steng utekraner", months: [10, 11] },
+  // Desember
+  { key: "mat-fuglene", title: "Mat fuglene", description: "De hjelper deg med skadedyr til våren.", months: [12] },
+  { key: "hvil-og-drom", title: "Hvil og drøm", description: "Bla i frøkataloger og noter hva som gikk bra og dårlig i år.", months: [12] },
 ];
 
 export type PlantProfile = {

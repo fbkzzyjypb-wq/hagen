@@ -22,7 +22,6 @@ import { compressImage } from "@/lib/images";
 import { areaInfo, categoryInfo, PLANT_CATEGORIES, plantTitle, type AreaKind, type Plant, type PlantBed, type PlantCategory } from "@/lib/types";
 import { BED_KINDS, bedsOf, createBed } from "@/lib/beds";
 import { findProfile, rulesFromProfile, searchProfiles, type PlantProfile } from "@/lib/care-rules";
-import { scheduleSyncSoon } from "@/lib/sync";
 import { ensurePlantFacts, resetPlantTasks } from "@/lib/plant-facts";
 
 /** Forhåndsutfylling av skjemaet for en ny plante, f.eks. fra bildeidentifisering. */
@@ -308,7 +307,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
         });
         onSaved?.(created);
       }
-      scheduleSyncSoon();
       ensurePlantFacts().catch(() => undefined);
       onOpenChange(false);
     } finally {

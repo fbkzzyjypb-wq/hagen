@@ -3,11 +3,11 @@
 import { EMPTY } from "@/lib/hooks";
 import { useEffect, useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, CalendarCheck, ListChecks } from "lucide-react";
+import { Plus, CalendarCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
-import { Page, EmptyState, Section } from "@/components/page";
+import { Page, EmptyState } from "@/components/page";
 import { TaskRow } from "@/components/task-row";
 import { RuleForm } from "@/components/rule-form";
 import { db } from "@/lib/db";
@@ -22,21 +22,18 @@ export function TasksScreen() {
   const year = month < thisMonth - 6 ? currentYear() + 1 : currentYear();
   const plants = useLiveQuery(() => db.plants.toArray(), []) ?? EMPTY;
   const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
-  const completions = useLiveQuery(() => db.completions.where("year").equals(year).toArray(), [year]) ?? EMPTY;
   const [addOpen, setAddOpen] = useState(false);
 
-  const tasks = useMemo(() => tasksForMonth(month, year, rules, plants, completions), [month, year, rules, plants, completions]);
+  const tasks = useMemo(() => tasksForMonth(month, year, rules, plants), [month, year, rules, plants]);
 
   useEffect(() => {
     document.getElementById(`month-chip-${month}`)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [month]);
-  const open = tasks.filter((t) => !t.done);
-  const done = tasks.filter((t) => t.done);
 
   return (
     <>
       <PageHeader
-        title="Oppgaver"
+        title="Oppgaver i hagen"
         subtitle={`${monthName(month, true)} ${year}`}
         action={
           <Button size="icon-lg" className="rounded-full" onClick={() => setAddOpen(true)} aria-label="Ny oppgave">
@@ -73,7 +70,7 @@ export function TasksScreen() {
             <EmptyState
               icon={<CalendarCheck className="size-6" />}
               title={`Ingenting planlagt i ${monthName(month)}`}
-              description={plants.length === 0 ? "Legg til planter, så fylles kalenderen med oppgaver som passer dem." : "Legg til en egen oppgave om du vil ha en påminnelse."}
+              description={plants.length === 0 ? "Legg til planter, så fylles kalenderen med oppgaver som passer dem." : "Legg til en egen oppgave for måneden om du vil."}
               action={
                 <Button variant="outline" className="h-11 rounded-xl bg-card" onClick={() => setAddOpen(true)}>
                   <Plus data-icon="inline-start" /> Ny oppgave
@@ -82,38 +79,18 @@ export function TasksScreen() {
             />
           </div>
         ) : (
-          <>
-            <Section title={`Å gjøre (${open.length})`} className="mt-4">
-              {open.length === 0 ? (
-                <div className="flex items-center gap-3 rounded-2xl bg-accent px-4 py-3 text-sm text-accent-foreground">
-                  <ListChecks className="size-5" /> Alt for {monthName(month)} er gjort. Godt jobbet!
-                </div>
-              ) : (
-                <Card className="py-0">
-                  <ul className="divide-y divide-border">
-                    {open.map((t) => (
-                      <TaskRow key={t.key} task={t} />
-                    ))}
-                  </ul>
-                </Card>
-              )}
-            </Section>
-            {done.length > 0 && (
-              <Section title={`Gjort (${done.length})`}>
-                <Card className="py-0">
-                  <ul className="divide-y divide-border">
-                    {done.map((t) => (
-                      <TaskRow key={t.key} task={t} />
-                    ))}
-                  </ul>
-                </Card>
-              </Section>
-            )}
-          </>
+          <Card className="mt-4 py-0">
+            <ul className="divide-y divide-border">
+              {tasks.map((t) => (
+                <TaskRow key={t.key} task={t} />
+              ))}
+            </ul>
+          </Card>
         )}
 
         <p className="mt-6 px-1 text-center text-xs text-muted-foreground">
-          Oppgavene kommer fra plantene dine og standardkalenderen for norsk klima. Trykk på en oppgave for å lese mer.
+          Oppgavene er forslag til hva som kan gjøres, ut fra plantene dine og en månedsoversikt for mildt kystklima. Juster gjerne et par uker etter
+          hvordan sesongen blir. Trykk på en oppgave for å lese mer.
         </p>
       </Page>
       <RuleForm open={addOpen} onOpenChange={setAddOpen} plants={plants} />

@@ -3,7 +3,6 @@ import { db } from "./db";
 import { newId } from "./id";
 import { CATEGORY_RULES } from "./care-rules";
 import { completeText, resolveTransport, type ChatTransport } from "./llm-client";
-import { scheduleSyncSoon } from "./sync";
 import { categoryInfo, FACT_TEXT_FIELDS, plantTitle, type CareRule, type DroughtTolerance, type Light, type Plant, type PlantFacts, type PropagationMethod, type Settings, type ToxicityLevel } from "./types";
 
 /**
@@ -262,7 +261,6 @@ export async function ensurePlantFacts(): Promise<void> {
     return;
   }
   running = true;
-  let changed = false;
   let lastLookup = 0;
   try {
     do {
@@ -309,11 +307,9 @@ export async function ensurePlantFacts(): Promise<void> {
             ...(advice ? { tasksChecked: true } : {}),
           });
         });
-        changed = true;
       }
     } while (again);
   } finally {
     running = false;
-    if (changed) scheduleSyncSoon();
   }
 }

@@ -66,8 +66,8 @@ export function buildGardenContext(ctx: Context): string {
 
   if (monthTasks && monthTasks.length > 0) {
     lines.push("");
-    lines.push("Planlagte oppgaver denne måneden:");
-    for (const t of monthTasks.slice(0, 15)) lines.push(`- ${t.rule.title}${t.done ? " (gjort)" : ""}`);
+    lines.push("Forslag til oppgaver denne måneden:");
+    for (const t of monthTasks.slice(0, 15)) lines.push(`- ${t.rule.title}`);
   }
   return lines.join("\n");
 }

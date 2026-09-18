@@ -45,11 +45,10 @@ export function AssistantScreen({ focusPlantId, initialQuestion }: Props) {
   const transport = useMemo(() => resolveTransport(settings), [settings]);
   const plants = useLiveQuery(() => db.plants.toArray(), []) ?? EMPTY;
   const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
-  const completions = useLiveQuery(() => db.completions.where("year").equals(currentYear()).toArray(), []) ?? EMPTY;
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
   const conversations = useLiveQuery(() => db.chatConversations.orderBy("updatedAt").reverse().toArray(), []);
 
-  const monthTasks = useMemo(() => tasksForMonth(currentMonth(), currentYear(), rules, plants, completions), [rules, plants, completions]);
+  const monthTasks = useMemo(() => tasksForMonth(currentMonth(), currentYear(), rules, plants), [rules, plants]);
 
   if (!transport) {
     const focusPlant = plants.find((p) => p.id === focusPlantId);

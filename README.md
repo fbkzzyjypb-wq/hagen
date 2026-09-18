@@ -1,6 +1,6 @@
 # Hagen
 
-Egen hage-app for iPhone: oversikt over planter og bed, bilder gjennom årene, valgfritt hagekart og en stell-kalender som varsler deg om hva som bør gjøres måned for måned. Bygget som web-app (PWA) med Next.js, og installeres fra nettleseren uten App Store eller TestFlight.
+Egen hage-app for iPhone: oversikt over planter og bed, bilder gjennom årene, valgfritt hagekart og en stell-kalender med forslag til hva som kan gjøres måned for måned. Bygget som web-app (PWA) med Next.js, og installeres fra nettleseren uten App Store eller TestFlight.
 
 ## Kom i gang lokalt
 
@@ -23,9 +23,7 @@ Merk: Private repoer krever GitHub Pro for Pages. Med gratis konto må repoet v�
 
 1. Åpne adressen i Safari, Chrome, Edge eller Firefox på telefonen.
 2. Trykk **Del** og velg **Legg til på Hjem-skjerm**.
-3. Åpne appen fra Hjem-skjermen. Da kjører den i fullskjerm, virker offline og kan motta varsler.
-
-Varsler krever iOS 16.4 eller nyere og at appen er åpnet fra Hjem-skjermen.
+3. Åpne appen fra Hjem-skjermen. Da kjører den i fullskjerm og virker offline.
 
 ## Bed og kart
 
@@ -47,9 +45,9 @@ For stauder styrer faktaene også delingen. Fellesregelen «Del og flytt stauder
 
 Egne bilder tas eller lastes opp fra plantesiden (**Ta bilde**) og i planteskjemaet. Alle beholdes med dato, slik at fanen **Bilder** blir en tidslinje over hvordan planten utvikler seg.
 
-## Varsler
+## Oppgaver i hagen
 
-Push-varsler må sendes fra en server. `worker/` inneholder en liten Cloudflare Worker (gratis) som gjør jobben. Se [worker/README.md](worker/README.md) for oppsett. Deretter limer du inn adressen under **Innstillinger → Varsler** i appen og slår på.
+Fanen **Oppgaver** viser forslag til hva som kan gjøres hver måned. Oppgavene er forslag og hukes ikke av. De kommer fra plantene dine og fra hageoppgavene i `GARDEN_RULES` ([src/lib/care-rules.ts](src/lib/care-rules.ts)), som følger en månedsoversikt for mildt, vindutsatt kystklima. Juster gjerne et par uker etter hvordan sesongen blir.
 
 ## KI-assistent
 
@@ -73,12 +71,11 @@ Alt ligger lokalt på telefonen. Under **Innstillinger → Data** kan du eksport
 - `src/app/` – sider (Hjem, Planter, Plante, Kart, Oppgaver, Assistent, Identifiser, Innstillinger)
 - `src/components/screens/` – skjermene
 - `src/lib/care-rules.ts` – standard stell-kalender og planteprofiler for norsk klima
-- `src/lib/tasks.ts` – utleder månedens oppgaver og varselplan
+- `src/lib/tasks.ts` – utleder månedens oppgaver
 - `src/lib/db.ts` – lokal database (Dexie/IndexedDB)
 - `src/lib/llm-client.ts` – strømming fra OpenAI-kompatible KI-leverandører
 - `src/lib/chat.ts` og `src/lib/chat-sessions.ts` – samtaler, bolker på én time, titler og sammendrag
-- `public/sw.js` – service worker for offline og push
-- `worker/` – varselserver (Cloudflare Worker)
+- `public/sw.js` – service worker for offline
 
 ## Kjøre på iPhone via Xcode
 
@@ -96,7 +93,7 @@ Første gang i Xcode:
 4. Velg telefonen som mål øverst i Xcode og trykk ▶︎.
 5. Første gang må du godkjenne deg selv på telefonen: **Innstillinger → Generelt → VPN og enhetsadministrering → Utviklerapp → Stol på**.
 
-Begrensninger med gratis Apple-ID: appen slutter å starte etter 7 dager. Kjør ▶︎ fra Xcode igjen, så fornyes den. Dataene beholdes så lenge du ikke sletter appen (ta en eksport for sikkerhets skyld). Push-varsler virker ikke i denne varianten, de krever web-appen på Hjem-skjermen eller betalt utviklerkonto. Pl@ntNet godkjenner heller ikke forespørsler fra appens interne adresse (`capacitor://localhost`).
+Begrensninger med gratis Apple-ID: appen slutter å starte etter 7 dager. Kjør ▶︎ fra Xcode igjen, så fornyes den. Dataene beholdes så lenge du ikke sletter appen (ta en eksport for sikkerhets skyld). Pl@ntNet godkjenner heller ikke forespørsler fra appens interne adresse (`capacitor://localhost`).
 
 Etter endringer i koden: `npm run ios` og ▶︎ på nytt. Capacitor 7 brukes fordi Capacitor 8 krever Xcode 26.
 
