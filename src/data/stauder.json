@@ -1,5 +1,5 @@
 {
-  "about": "Dyrkingsfakta for vanlige hagestauder i Norge. Verdiene er veiledende: herdighet er høyeste sone planten normalt klarer seg i (H1 mildest, H8 hardest), høyde og bredde er cm fra–til, toxicity.level følger Giftinformasjonens inndeling (ufarlig, lite, giftig, meget) og gjelder både mennesker og kjæledyr, og everyYears er år mellom hver deling (0 når planten ikke bør deles). Planter slås opp på latinsk navn (art, så slekt; aliases er synonymer) og deretter på norsk navn. Feltene er beskrevet i PlantFacts i src/lib/types.ts.",
+  "about": "Dyrkingsfakta for vanlige hagestauder i Norge. Verdiene er veiledende: herdighet er høyeste sone planten normalt klarer seg i (H1 mildest, H8 hardest), høyde og bredde er cm fra–til, toxicity.level følger Giftinformasjonens inndeling (ufarlig, lite, giftig, meget) og gjelder både mennesker og kjæledyr, og everyYears er år mellom hver deling (0 når planten ikke bør deles). Planter slås opp på latinsk navn (art, så slekt; aliases er synonymer) og deretter på norsk navn. Verdiene her går foran svaret fra KI-leverandøren, som fyller ut resten av feltene. Feltene er beskrevet i PlantFacts i src/lib/types.ts.",
   "plants": [
     {
       "latin": "Hosta",

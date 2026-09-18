@@ -33,19 +33,17 @@ Plantene grupperes i **bed**: navngitte grupper som «Eplehekken» eller «Bedet
 
 Hagekartet er skjult som standard og slås på under **Innstillinger → Hagen → Vis hagekartet**. Der kan bedene få en figur på kartet og plantene plasseres. Ingenting krever kartet.
 
-## Staudefakta og deling
+## Plantefakta og deling
 
 [src/data/stauder.json](src/data/stauder.json) er en liste over vanlige hagestauder med herdighet, lysforhold, jord, størrelse, vanning, tørketoleranse, giftighet og formering: om rotdeling er anbefalt, hvor ofte og når, eller om stiklinger eller frø er bedre. Giftigheten følger Giftinformasjonens inndeling (ufarlig, lite giftig, giftig, meget giftig) og gjelder både mennesker og kjæledyr. Verdiene er veiledende. Planter slås opp på latinsk navn (art, så slekt) og deretter norsk navn, og faktaene vises under **Info** på plantesiden. Nye stauder legges til ved å kopiere en oppføring i filen. Feltene er beskrevet i `PlantFacts` i `src/lib/types.ts`.
 
-Stauder som ikke står i listen slås opp hos KI-leverandøren når de legges til (og ved oppstart for stauder som ikke er sjekket ennå). Svaret har samme felter og lagres på planten.
+Alle planter, uansett kategori, slås i tillegg opp hos KI-leverandøren når de legges til (og ved oppstart for planter som ikke er slått opp ennå). Svaret lagres på planten og har de samme feltene pluss beskrivelse, type, plantefamilie, opprinnelse, gjødsling, blomstring, beskjæring, såing og planting, høsting, overvintring, sykdommer og skadedyr, verdi for dyrelivet, spiselighet og annet verdt å vite. Felt som ikke er relevante for planten utelates. For stauder i listen går verdiene fra listen foran KI-svaret. Oppslagene går ett om gangen med en kort pause, så gratisnivåene hos leverandørene holder, og uten KI-leverandør vises bare stauder fra listen.
 
-Faktaene styrer også delingen. Fellesregelen «Del og flytt stauder» kommer hvert tredje år ut fra plantens alder (plantingsår, ellers året planten ble lagt inn). Når en staude er slått opp, får den sin egen deleregel i stedet: asters hvert 3. år, hosta hvert 5., og pion, julerose og andre som bør stå i fred får regelen slått av med en forklaring. Regelen kan slås av og på per plante under **Stell**.
+For stauder styrer faktaene også delingen. Fellesregelen «Del og flytt stauder» kommer hvert tredje år ut fra plantens alder (plantingsår, ellers året planten ble lagt inn). Når en staude er slått opp, får den sin egen deleregel i stedet: asters hvert 3. år, hosta hvert 5., og pion, julerose og andre som bør stå i fred får regelen slått av med en forklaring. Regelen kan slås av og på per plante under **Stell**.
 
 ## Bilder
 
 Egne bilder tas eller lastes opp fra plantesiden (**Ta bilde**) og i planteskjemaet. Alle beholdes med dato, slik at fanen **Bilder** blir en tidslinje over hvordan planten utvikler seg.
-
-I tillegg får hver plante automatisk et **illustrasjonsbilde** fra [Wikipedia](https://www.wikipedia.org) (gratis, uten nøkkel), slått opp på latinsk navn og deretter norsk navn. Det lagres på telefonen med fotograf, lisens og lenke til kilden, vises på plantesiden under dine egne bilder, og kan fjernes der hvis det er feil. Listene bruker pixel-ikonene (eller ditt eget bilde), ikke illustrasjonsbildet.
 
 ## Varsler
 

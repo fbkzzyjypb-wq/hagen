@@ -26,7 +26,6 @@ import { categoryInfo, MONTHS_NB_SHORT, plantTitle, type CareRule, type DroughtT
 import { currentYear, formatDate } from "@/lib/dates";
 import { scheduleSyncSoon } from "@/lib/sync";
 import { isPlaced, polylineLength } from "@/lib/geometry";
-import { refImageId, removeReferenceImage } from "@/lib/plant-image";
 import { factsFor } from "@/lib/plant-facts";
 import { capitalize } from "@/lib/plant-lookup";
 import { cn } from "cn";
@@ -58,9 +57,8 @@ export function PlantDetailScreen({ id }: { id: string }) {
   const info = categoryInfo(plant.category);
 
   async function deletePlant() {
-    await db.transaction("rw", [db.plants, db.photos, db.rules, db.completions, db.assets], async () => {
+    await db.transaction("rw", [db.plants, db.photos, db.rules, db.completions], async () => {
       await db.photos.where("plantId").equals(plant!.id).delete();
-      await removeReferenceImage(plant!.id);
       const ruleIds = await db.rules.where("plantId").equals(plant!.id).primaryKeys();
       await db.rules.where("plantId").equals(plant!.id).delete();
       for (const rid of ruleIds) await db.completions.where("ruleId").equals(rid).delete();
@@ -159,7 +157,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
                 ))}
               </div>
             )}
-            <ReferenceImage plantId={plant.id} alt={plantTitle(plant)} />
           </TabsContent>
 
           <TabsContent value="stell" className="mt-3">
@@ -305,61 +302,63 @@ export function PlantDetailScreen({ id }: { id: string }) {
   );
 }
 
-/** Illustrasjonsbildet fra Wikipedia, med kilde. Vises under egne bilder. */
-function ReferenceImage({ plantId, alt }: { plantId: string; alt: string }) {
-  const image = useLiveQuery(() => db.assets.get(refImageId(plantId)), [plantId]);
-  if (!image) return null;
-  return (
-    <figure className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
-      <BlobImage blob={image.blob} alt={alt} className="max-h-72 w-full object-cover" />
-      <figcaption className="flex items-center justify-between gap-3 px-3 py-2 text-xs text-muted-foreground">
-        <span className="min-w-0 truncate">
-          Illustrasjonsbilde ·{" "}
-          <a href={image.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-            {image.credit}
-          </a>
-        </span>
-        <button type="button" className="shrink-0 font-medium hover:text-foreground" onClick={() => removeReferenceImage(plantId)}>
-          Fjern
-        </button>
-      </figcaption>
-    </figure>
-  );
+const DROUGHT_LABELS: Record<DroughtTolerance, string> = { lav: "Tåler tørke dårlig", middel: "Tåler noe tørke", god: "Tåler tørke godt" };
+const METHOD_LABELS: Record<PropagationMethod, string> = { deling: "Deling", stiklinger: "Stiklinger", fro: "Frø", avleggere: "Avleggere", poding: "Poding", ingen: "Bør stå i fred" };
+const TOXICITY_LABELS: Record<ToxicityLevel, string> = { ufarlig: "Ufarlig", lite: "Lite giftig", giftig: "Giftig", meget: "Meget giftig", ukjent: "Ukjent" };
+const SOURCE_LABELS = {
+  liste: "Fra appens staudeliste. Verdiene er veiledende.",
+  ki: "Fra KI-leverandøren. Kan inneholde feil.",
+  begge: "Fra appens staudeliste, utfylt av KI-leverandøren. Kan inneholde feil.",
+};
+
+/** «40–60 cm», og meter for trær og store busker: «3–8 m». */
+function sizeRange([from, to]: [number, number]): string {
+  const meters = to >= 200;
+  const n = (v: number) => (meters ? (v / 100).toLocaleString("nb-NO", { maximumFractionDigits: 1 }) : String(v));
+  return `${from === to ? n(from) : `${n(from)}–${n(to)}`} ${meters ? "m" : "cm"}`;
 }
 
-const DROUGHT_LABELS: Record<DroughtTolerance, string> = { lav: "Tåler tørke dårlig", middel: "Tåler noe tørke", god: "Tåler tørke godt" };
-const METHOD_LABELS: Record<PropagationMethod, string> = { deling: "Deling", stiklinger: "Stiklinger", fro: "Frø", ingen: "Bør stå i fred" };
-const TOXICITY_LABELS: Record<ToxicityLevel, string> = { ufarlig: "Ufarlig", lite: "Lite giftig", giftig: "Giftig", meget: "Meget giftig", ukjent: "Ukjent" };
-
-/** Dyrkingsfakta fra staudelisten eller KI-leverandøren. Vises ikke når planten ikke er slått opp. */
+/** Plantefakta fra staudelisten og KI-leverandøren. Vises ikke når planten ikke er slått opp. */
 function FactsCard({ plant }: { plant: Plant }) {
   const found = factsFor(plant);
   if (!found) return null;
   const { facts, source } = found;
-  const size = (r: [number, number]) => (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`);
   const { method, everyYears, months = [], note } = facts.propagation;
   const toxic = facts.toxicity?.level === "giftig" || facts.toxicity?.level === "meget";
-  const propagation = [
-    method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : METHOD_LABELS[method],
-    months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", "),
-  ]
+  // Bare stauder «bør stå i fred». For andre planter betyr ingen at de vanligvis kjøpes ferdige.
+  const methodLabel = method === "ingen" && plant.category !== "staude" ? "Formeres sjelden i hagen" : METHOD_LABELS[method];
+  const propagation = [method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : methodLabel, months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", ")]
     .filter(Boolean)
     .join(" · ");
   return (
     <Card className="mt-3 gap-3 px-4">
-      <p className="text-sm font-semibold">Dyrking</p>
-      <Row label="Herdighet" value={facts.hardiness} />
+      <p className="text-sm font-semibold">Plantefakta</p>
+      {facts.description && <p className="text-sm">{facts.description}</p>}
+      {facts.type && <Row label="Type" value={facts.type} />}
+      {facts.family && <Row label="Familie" value={facts.family} />}
+      {facts.origin && <Row label="Opprinnelse" value={facts.origin} />}
+      {facts.hardiness && <Row label="Herdighet" value={facts.hardiness} />}
       <Row label="Lys" value={capitalize(facts.light.join(", "))} />
-      <Row label="Størrelse" value={`${size(facts.height)} cm høy${facts.spread ? `, ${size(facts.spread)} cm bred` : ""}`} />
+      <Row label="Størrelse" value={`${sizeRange(facts.height)} høy${facts.spread ? `, ${sizeRange(facts.spread)} bred` : ""}`} />
       <Row label="Tørke" value={DROUGHT_LABELS[facts.droughtTolerance]} />
       {facts.soil && <Block label="Jord" value={facts.soil} />}
       {facts.watering && <Block label="Vanning" value={facts.watering} />}
-      <Block label="Formering" value={propagation} note={note} />
+      {facts.fertilizing && <Block label="Gjødsling" value={facts.fertilizing} />}
+      {facts.bloom && <Block label="Blomstring" value={facts.bloom} />}
+      {facts.pruning && <Block label="Beskjæring" value={facts.pruning} />}
+      {facts.planting && <Block label="Såing og planting" value={facts.planting} />}
+      {facts.harvest && <Block label="Høsting" value={facts.harvest} />}
+      {facts.winterCare && <Block label="Overvintring" value={facts.winterCare} />}
+      {(method !== "ingen" || note) && <Block label="Formering" value={propagation} note={note} />}
+      {facts.pests && <Block label="Sykdommer og skadedyr" value={facts.pests} />}
+      {facts.wildlife && <Block label="Dyreliv" value={facts.wildlife} />}
+      {facts.edible && <Block label="Spiselig" value={facts.edible} />}
+      {facts.tips && <Block label="Verdt å vite" value={facts.tips} />}
       {facts.toxicity && (
         <Block label="Giftighet" value={TOXICITY_LABELS[facts.toxicity.level]} note={facts.toxicity.note} valueClassName={toxic ? "font-medium text-destructive" : undefined} />
       )}
       <p className="text-xs text-muted-foreground">
-        {source === "liste" ? "Fra appens staudeliste. Verdiene er veiledende." : "Fra KI-leverandøren. Kan inneholde feil."}
+        {SOURCE_LABELS[source]}
         {facts.toxicity && facts.toxicity.level !== "ufarlig" && (
           <>
             {" "}Har noen fått i seg planten, ring Giftinformasjonen på{" "}

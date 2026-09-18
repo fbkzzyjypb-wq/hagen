@@ -63,11 +63,11 @@ export interface Plant {
   line?: Point[];
   /** Nøkkel til planteprofil (stell-mal) hvis planten ble lagt til fra forslagslisten. */
   profileKey?: string;
-  /** Navnene illustrasjonsbildet sist ble slått opp med. Endres navnet, slås det opp på nytt. */
-  imageLookup?: string;
-  /** Dyrkingsfakta fra KI-leverandøren, for stauder som ikke står i src/data/stauder.json (se plant-facts.ts). */
+  /** Plantefakta fra KI-leverandøren (se plant-facts.ts). Står planten i src/data/stauder.json, går verdiene derfra foran. */
   facts?: PlantFacts;
-  /** Satt når fakta er slått opp og deleregelen er tilpasset planten. Gjøres bare én gang. */
+  /** Versjonen av faktaoppslaget som ga `facts`. Eldre versjoner slås opp på nytt. */
+  factsVersion?: number;
+  /** Satt når deleregelen er tilpasset stauden. Gjøres bare én gang. */
   factsChecked?: boolean;
   createdAt: number;
   updatedAt: number;
@@ -75,15 +75,23 @@ export interface Plant {
 
 export type Light = "sol" | "halvskygge" | "skygge";
 export type DroughtTolerance = "lav" | "middel" | "god";
-/** Beste måte å fornye eller formere planten på. "ingen" betyr at den bør stå i fred. */
-export type PropagationMethod = "deling" | "stiklinger" | "fro" | "ingen";
+/** Beste måte å fornye eller formere planten på. "ingen" betyr at den bør stå i fred eller vanligvis kjøpes ferdig. */
+export type PropagationMethod = "deling" | "stiklinger" | "fro" | "avleggere" | "poding" | "ingen";
 /** Giftighet etter Giftinformasjonens inndeling. "ukjent" når KI-leverandøren ikke vet. */
 export type ToxicityLevel = "ufarlig" | "lite" | "giftig" | "meget" | "ukjent";
 
-/** Dyrkingsfakta for en staude. Samme form i src/data/stauder.json og i svaret fra KI-leverandøren. */
-export interface PlantFacts {
-  /** Høyeste herdighetssone planten normalt klarer seg i, H1 (mildest) til H8. */
-  hardiness: string;
+/**
+ * Tekstfeltene KI-leverandøren fyller ut i tillegg til kjernefeltene: beskrivelse, livsløp og vekstform, plantefamilie,
+ * opprinnelse, gjødsling, blomstring, beskjæring, såing og planting, høsting, overvintring, sykdommer og skadedyr,
+ * verdi for dyrelivet, spiselighet og annet verdt å vite. Utelatt når feltet ikke er relevant for planten.
+ */
+export const FACT_TEXT_FIELDS = ["description", "type", "family", "origin", "fertilizing", "bloom", "pruning", "planting", "harvest", "winterCare", "pests", "wildlife", "edible", "tips"] as const;
+export type FactTextField = (typeof FACT_TEXT_FIELDS)[number];
+
+/** Fakta om en plante. Kjernefeltene har samme form i src/data/stauder.json og i svaret fra KI-leverandøren. */
+export interface PlantFacts extends Partial<Record<FactTextField, string>> {
+  /** Høyeste herdighetssone planten normalt klarer seg i, H1 (mildest) til H8. Mangler for ettårige. */
+  hardiness?: string;
   light: Light[];
   soil: string;
   /** Høyde i cm, fra–til. */
@@ -146,15 +154,11 @@ export interface Photo {
   note?: string;
 }
 
-/** Frittstående bilde, f.eks. forsidebildet på Hjem (id "cover") eller illustrasjonsbildet til en plante (se plant-image.ts). */
+/** Frittstående bilde, f.eks. forsidebildet på Hjem (id "cover"). */
 export interface Asset {
   id: string;
   blob: Blob;
   updatedAt: number;
-  /** Fotograf og lisens, for bilder hentet utenfra. */
-  credit?: string;
-  /** Siden bildet er hentet fra. */
-  sourceUrl?: string;
 }
 
 /** Bakgrunnsbilde på kartet, f.eks. satellittbilde av tomten. */
