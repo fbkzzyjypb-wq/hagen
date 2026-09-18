@@ -17,7 +17,7 @@ import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
 import { categorizeCandidates, inferCategory, lookupPlant, matchProfile, type PlantCandidate } from "@/lib/plant-lookup";
-import { identifyPlantPhoto } from "@/lib/plant-id";
+import { identifyPlantPhotos } from "@/lib/plant-id";
 import { compressImage } from "@/lib/images";
 import { areaInfo, categoryInfo, PLANT_CATEGORIES, plantTitle, type AreaKind, type Plant, type PlantBed, type PlantCategory } from "@/lib/types";
 import { BED_KINDS, bedsOf, createBed } from "@/lib/beds";
@@ -191,7 +191,7 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     setShowSuggestions(false);
     resetLookup();
     try {
-      const result = await identifyPlantPhoto(settings.plantNetApiKey, file, ac.signal);
+      const result = await identifyPlantPhotos(settings.plantNetApiKey, [{ blob: file, organ: "auto" }], ac.signal);
       if (ac.signal.aborted) return;
       let found = result.candidates;
       if (transport && found.length > 0) found = await categorizeCandidates(transport, found, ac.signal);

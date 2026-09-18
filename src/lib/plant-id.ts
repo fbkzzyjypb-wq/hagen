@@ -20,6 +20,19 @@ type PlantNetResponse = {
 
 export type Identification = { candidates: PlantCandidate[]; remaining?: number };
 
+/** Hva et bilde viser. Pl@ntNet godtar bare disse: «vekstform» og «annet» fra appen deres finnes ikke i API-et. */
+export type PlantOrgan = "auto" | "leaf" | "flower" | "fruit" | "bark";
+export const PLANT_ORGANS: { value: PlantOrgan; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "leaf", label: "Blad" },
+  { value: "flower", label: "Blomst" },
+  { value: "fruit", label: "Frukt" },
+  { value: "bark", label: "Bark" },
+];
+/** Pl@ntNet tar imot høyst fem bilder av samme plante per identifisering. */
+export const MAX_IDENTIFY_PHOTOS = 5;
+export type IdentifyPhoto = { blob: Blob; organ: PlantOrgan };
+
 function describeError(status: number, body: string): Error {
   let detail = "";
   try {
@@ -56,14 +69,17 @@ async function norwegianName(latinName: string, signal?: AbortSignal): Promise<s
 }
 
 /**
- * Identifiserer planten på et bilde med Pl@ntNet. Bildet krympes før sending. Norsk navn hentes fra Artsdatabanken,
- * ellers brukes Pl@ntNets vanlige navn eller det latinske. Tom liste når Pl@ntNet ikke finner noen plante.
+ * Identifiserer planten med Pl@ntNet ut fra ett til fem bilder av samme plante, sendt i ett kall. Hvert bilde har et organ
+ * (blad, blomst ...), eller «auto» så Pl@ntNet avgjør det selv. Bildene krympes før sending. Norsk navn hentes fra
+ * Artsdatabanken, ellers brukes Pl@ntNets vanlige navn eller det latinske. Tom liste når Pl@ntNet ikke finner noen plante.
  */
-export async function identifyPlantPhoto(apiKey: string, file: Blob, signal?: AbortSignal): Promise<Identification> {
-  const image = await compressImage(file, 1280, 0.85);
+export async function identifyPlantPhotos(apiKey: string, photos: IdentifyPhoto[], signal?: AbortSignal): Promise<Identification> {
+  const used = photos.slice(0, MAX_IDENTIFY_PHOTOS);
+  const images = await Promise.all(used.map((p) => compressImage(p.blob, 1280, 0.85)));
   const form = new FormData();
-  form.append("images", image, "plante.jpg");
-  form.append("organs", "auto");
+  // API-et parer bilder og organer etter rekkefølge, og krever like mange av hver.
+  images.forEach((image, i) => form.append("images", image, `plante-${i + 1}.jpg`));
+  used.forEach((p) => form.append("organs", p.organ));
   const url = `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(apiKey)}&nb-results=4&include-related-images=false`;
 
   let res: Response;
