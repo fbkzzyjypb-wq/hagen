@@ -22,7 +22,7 @@ import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
 import { quantityInBed } from "@/lib/beds";
 import { nextDueYear, rulesForPlant } from "@/lib/tasks";
-import { categoryInfo, MONTHS_NB_SHORT, plantTitle, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod, type ToxicityLevel } from "@/lib/types";
+import { categoryInfo, MONTHS_NB_SHORT, plantTitle, TOXICITY_LABELS, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod } from "@/lib/types";
 import { currentYear, formatDate } from "@/lib/dates";
 import { isPlaced, polylineLength } from "@/lib/geometry";
 import { factsFor } from "@/lib/plant-facts";
@@ -301,7 +301,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
 
 const DROUGHT_LABELS: Record<DroughtTolerance, string> = { lav: "Tåler tørke dårlig", middel: "Tåler noe tørke", god: "Tåler tørke godt" };
 const METHOD_LABELS: Record<PropagationMethod, string> = { deling: "Deling", stiklinger: "Stiklinger", fro: "Frø", avleggere: "Avleggere", poding: "Poding", ingen: "Bør stå i fred" };
-const TOXICITY_LABELS: Record<ToxicityLevel, string> = { ufarlig: "Ufarlig", lite: "Lite giftig", giftig: "Giftig", meget: "Meget giftig", ukjent: "Ukjent" };
 const SOURCE_LABELS = {
   liste: "Fra appens staudeliste. Verdiene er veiledende.",
   ki: "Fra KI-leverandøren. Kan inneholde feil.",

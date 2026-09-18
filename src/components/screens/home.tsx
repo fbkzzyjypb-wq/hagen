@@ -4,7 +4,7 @@ import { EMPTY } from "@/lib/hooks";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Map as MapIcon, ChevronRight, Camera, Sprout, Settings } from "lucide-react";
+import { Plus, Map as MapIcon, ChevronRight, Camera, Sprout, Settings, Skull } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
@@ -12,6 +12,7 @@ import { GardenPreview } from "@/components/garden-preview";
 import { Page, Section } from "@/components/page";
 import { AskClaudeButton } from "@/components/ask-claude";
 import { PlantForm } from "@/components/plant-form";
+import { ToxicitySheet } from "@/components/toxicity-sheet";
 import { BlobImage } from "@/components/blob-image";
 import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
@@ -30,6 +31,7 @@ export function HomeScreen() {
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
   const bedCount = useMemo(() => bedsOf(areas).length, [areas]);
   const [addOpen, setAddOpen] = useState(false);
+  const [toxicityOpen, setToxicityOpen] = useState(false);
 
   const month = currentMonth();
   const year = currentYear();
@@ -71,7 +73,7 @@ export function HomeScreen() {
           </div>
         </Card>
 
-        <div className={`mt-4 grid gap-2 ${settings.showMap ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div className={`mt-4 grid gap-2 ${settings.showMap ? "grid-cols-4" : "grid-cols-3"}`}>
           <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" onClick={() => setAddOpen(true)}>
             <Plus className="size-5 text-primary" />
             <span className="text-xs">Ny plante</span>
@@ -85,6 +87,10 @@ export function HomeScreen() {
           <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" nativeButton={false} render={<Link href="/identifiser/" />}>
             <Camera className="size-5 text-primary" />
             <span className="text-xs">Identifiser</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" onClick={() => setToxicityOpen(true)}>
+            <Skull className="size-5 text-primary" />
+            <span className="text-xs">Giftighet</span>
           </Button>
         </div>
 
@@ -135,6 +141,7 @@ export function HomeScreen() {
         )}
       </Page>
       <PlantForm open={addOpen} onOpenChange={setAddOpen} />
+      <ToxicitySheet open={toxicityOpen} onOpenChange={setToxicityOpen} plants={plants} />
     </>
   );
 }

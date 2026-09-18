@@ -81,6 +81,7 @@ export type DroughtTolerance = "lav" | "middel" | "god";
 export type PropagationMethod = "deling" | "stiklinger" | "fro" | "avleggere" | "poding" | "ingen";
 /** Giftighet etter Giftinformasjonens inndeling. "ukjent" når KI-leverandøren ikke vet. */
 export type ToxicityLevel = "ufarlig" | "lite" | "giftig" | "meget" | "ukjent";
+export const TOXICITY_LABELS: Record<ToxicityLevel, string> = { ufarlig: "Ufarlig", lite: "Lite giftig", giftig: "Giftig", meget: "Meget giftig", ukjent: "Ukjent" };
 
 /**
  * Tekstfeltene KI-leverandøren fyller ut i tillegg til kjernefeltene: beskrivelse, livsløp og vekstform, plantefamilie,
