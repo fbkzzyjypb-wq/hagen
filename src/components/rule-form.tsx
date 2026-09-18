@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Field, MonthPicker, NativeSelect } from "@/components/fields";
 import { db } from "@/lib/db";
 import { newId } from "@/lib/id";
-import { PLANT_CATEGORIES, type CareRule, type Plant, type PlantCategory, type RuleScope } from "@/lib/types";
+import { PLANT_CATEGORIES, type CareRule, type Plant, type PlantCategory, type RuleScope, plantTitle } from "@/lib/types";
 import { scheduleSyncSoon } from "@/lib/sync";
 
 type Props = {
@@ -49,6 +49,7 @@ function RuleFormBody({ onOpenChange, plant, rule, plants = [] }: Omit<Props, "o
       title: title.trim(),
       description: description.trim() || undefined,
       months,
+      everyYears: scope === "garden" ? undefined : rule?.everyYears,
       scope,
       plantId: scope === "plant" ? plantId : undefined,
       category: scope === "category" ? category : undefined,
@@ -112,7 +113,7 @@ function RuleFormBody({ onOpenChange, plant, rule, plants = [] }: Omit<Props, "o
               <NativeSelect id="rule-plant" value={plantId} onChange={(e) => setPlantId(e.target.value)}>
                 {plants.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name}
+                    {plantTitle(p)}
                   </option>
                 ))}
               </NativeSelect>

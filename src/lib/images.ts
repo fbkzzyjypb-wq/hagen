@@ -18,8 +18,8 @@ async function loadBitmap(blob: Blob): Promise<ImageBitmap | HTMLImageElement> {
   });
 }
 
-/** Skalerer bildet ned til maks `maxSize` piksler på lengste side og komprimerer til JPEG. */
-export async function compressImage(file: Blob, maxSize = 1600, quality = 0.82): Promise<Blob> {
+/** Skalerer bildet ned til maks `maxSize` piksler på lengste side og komprimerer til JPEG. Returnerer også størrelsen. */
+export async function compressImageWithSize(file: Blob, maxSize = 1600, quality = 0.82): Promise<{ blob: Blob; width: number; height: number }> {
   const source = await loadBitmap(file);
   const width = "naturalWidth" in source ? source.naturalWidth : source.width;
   const height = "naturalHeight" in source ? source.naturalHeight : source.height;
@@ -35,11 +35,13 @@ export async function compressImage(file: Blob, maxSize = 1600, quality = 0.82):
   ctx.drawImage(source, 0, 0, w, h);
   if ("close" in source) source.close();
 
-  return new Promise((resolve, reject) => {
+  const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Kunne ikke komprimere bildet"))), "image/jpeg", quality);
   });
+  return { blob, width: w, height: h };
 }
 
-export function useObjectUrl(blob: Blob | undefined) {
-  return blob ? URL.createObjectURL(blob) : undefined;
+/** Skalerer bildet ned til maks `maxSize` piksler på lengste side og komprimerer til JPEG. */
+export async function compressImage(file: Blob, maxSize = 1600, quality = 0.82): Promise<Blob> {
+  return (await compressImageWithSize(file, maxSize, quality)).blob;
 }

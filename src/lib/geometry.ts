@@ -35,3 +35,48 @@ export function clamp(v: number, min: number, max: number): number {
 export function snap(v: number, step = 0.25): number {
   return Math.round(v / step) * step;
 }
+
+export function polylineLength(pts: Point[]): number {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+  return len;
+}
+
+/** Punktet midt på linjen, målt langs lengden. */
+export function polylineMidpoint(pts: Point[]): Point {
+  if (pts.length === 0) return { x: 0, y: 0 };
+  if (pts.length === 1) return pts[0];
+  let remaining = polylineLength(pts) / 2;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    if (remaining <= seg && seg > 0) {
+      const t = remaining / seg;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    remaining -= seg;
+  }
+  return pts[pts.length - 1];
+}
+
+/** Korteste avstand fra et punkt til en linje med flere segmenter. */
+export function distanceToPolyline(p: Point, pts: Point[]): number {
+  if (pts.length === 0) return Infinity;
+  if (pts.length === 1) return Math.hypot(p.x - pts[0].x, p.y - pts[0].y);
+  let best = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    best = Math.min(best, Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t)));
+  }
+  return best;
+}
+
+export function isPlaced(p: { position?: Point; line?: Point[] }): boolean {
+  return !!p.position || (!!p.line && p.line.length >= 2);
+}

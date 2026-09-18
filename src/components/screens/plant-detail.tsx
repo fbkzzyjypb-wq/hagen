@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Pencil, MapPin, Plus, Trash2, Images, CalendarDays, FileText } from "lucide-react";
+import { ArrowLeft, Pencil, MapPin, Plus, Trash2, Images, CalendarDays, FileText, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -19,10 +19,16 @@ import { PhotoCapture } from "@/components/photo-capture";
 import { BlobImage } from "@/components/blob-image";
 import { AskClaudeButton } from "@/components/ask-claude";
 import { db } from "@/lib/db";
-import { rulesForPlant } from "@/lib/tasks";
-import { categoryInfo, MONTHS_NB_SHORT, type CareRule, type Photo } from "@/lib/types";
-import { formatDate } from "@/lib/dates";
+import { useSettings } from "@/lib/settings";
+import { quantityInBed } from "@/lib/beds";
+import { nextDueYear, rulesForPlant } from "@/lib/tasks";
+import { categoryInfo, MONTHS_NB_SHORT, plantTitle, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod } from "@/lib/types";
+import { currentYear, formatDate } from "@/lib/dates";
 import { scheduleSyncSoon } from "@/lib/sync";
+import { isPlaced, polylineLength } from "@/lib/geometry";
+import { refImageId, removeReferenceImage } from "@/lib/plant-image";
+import { factsFor } from "@/lib/plant-facts";
+import { capitalize } from "@/lib/plant-lookup";
 import { cn } from "cn";
 
 export function PlantDetailScreen({ id }: { id: string }) {
@@ -30,6 +36,8 @@ export function PlantDetailScreen({ id }: { id: string }) {
   const plant = useLiveQuery(() => db.plants.get(id), [id]);
   const photos = useLiveQuery(() => db.photos.where("plantId").equals(id).reverse().sortBy("takenAt"), [id]) ?? EMPTY;
   const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
+  const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
+  const settings = useSettings();
   const [editOpen, setEditOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [editRule, setEditRule] = useState<CareRule | undefined>();
@@ -50,8 +58,9 @@ export function PlantDetailScreen({ id }: { id: string }) {
   const info = categoryInfo(plant.category);
 
   async function deletePlant() {
-    await db.transaction("rw", [db.plants, db.photos, db.rules, db.completions], async () => {
+    await db.transaction("rw", [db.plants, db.photos, db.rules, db.completions, db.assets], async () => {
       await db.photos.where("plantId").equals(plant!.id).delete();
+      await removeReferenceImage(plant!.id);
       const ruleIds = await db.rules.where("plantId").equals(plant!.id).primaryKeys();
       await db.rules.where("plantId").equals(plant!.id).delete();
       for (const rid of ruleIds) await db.completions.where("ruleId").equals(rid).delete();
@@ -69,7 +78,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
   return (
     <>
       <PageHeader
-        title={plant.name}
+        title={plantTitle(plant)}
         subtitle={plant.latinName || info.label}
         leading={
           <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/planter/" aria-label="Tilbake" />}>
@@ -89,12 +98,28 @@ export function PlantDetailScreen({ id }: { id: string }) {
           </span>
           {plant.variety && <span className="rounded-full bg-muted px-2.5 py-1 font-medium">{`'${plant.variety}'`}</span>}
           {plant.plantedYear && <span className="rounded-full bg-muted px-2.5 py-1 font-medium">Plantet {plant.plantedYear}</span>}
-          <Link
-            href={plant.position ? `/kart/?plante=${plant.id}` : `/kart/?plasser=${plant.id}`}
-            className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium", plant.position ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground")}
-          >
-            <MapPin className="size-3" /> {plant.position ? "Vis på kartet" : "Plasser på kartet"}
-          </Link>
+          {plant.quantity && plant.quantity > 1 && (!plant.beds || plant.beds.length !== 1) && (
+            <span className="rounded-full bg-muted px-2.5 py-1 font-medium">{plant.quantity} stk</span>
+          )}
+          {(plant.beds ?? []).map((b) => {
+            const bed = areas.find((a) => a.id === b.areaId);
+            if (!bed) return null;
+            const qty = quantityInBed(plant, bed.id);
+            return (
+              <Link key={bed.id} href={`/planter/?bed=${bed.id}`} className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 font-medium text-accent-foreground">
+                <Sprout className="size-3" /> {bed.name}
+                {qty > 1 ? ` · ${qty} stk` : ""}
+              </Link>
+            );
+          })}
+          {settings.showMap && (
+            <Link
+              href={isPlaced(plant) ? `/kart/?plante=${plant.id}` : `/kart/?plasser=${plant.id}`}
+              className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium", isPlaced(plant) ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground")}
+            >
+              <MapPin className="size-3" /> {isPlaced(plant) ? "Vis på kartet" : "Plasser på kartet"}
+            </Link>
+          )}
         </div>
 
         <div className="mt-4 flex gap-2">
@@ -134,6 +159,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
                 ))}
               </div>
             )}
+            <ReferenceImage plantId={plant.id} alt={plantTitle(plant)} />
           </TabsContent>
 
           <TabsContent value="stell" className="mt-3">
@@ -160,6 +186,11 @@ export function PlantDetailScreen({ id }: { id: string }) {
                             {MONTHS_NB_SHORT[m - 1]}
                           </span>
                         ))}
+                        {r.enabled && r.everyYears && (
+                          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                            Hvert {r.everyYears}. år · neste {nextDueYear(r, plant, currentYear())}
+                          </span>
+                        )}
                         {r.scope === "category" && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">Alle {info.label.toLowerCase()}</span>}
                       </div>
                       {r.description && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{r.description}</p>}
@@ -211,7 +242,9 @@ export function PlantDetailScreen({ id }: { id: string }) {
               {plant.variety && <Row label="Sort" value={plant.variety} />}
               <Row label="Kategori" value={info.label} />
               {plant.plantedYear && <Row label="Plantet" value={String(plant.plantedYear)} />}
+              <Row label="Antall" value={String(plant.quantity ?? 1)} />
               {plant.position && <Row label="Plassering" value={`${plant.position.x.toFixed(1)} m, ${plant.position.y.toFixed(1)} m`} />}
+              {plant.line && plant.line.length >= 2 && <Row label="Plassering" value={`Rekke på ${polylineLength(plant.line).toFixed(1)} m`} />}
               <Row label="Lagt til" value={formatDate(plant.createdAt)} />
               {plant.notes && (
                 <div>
@@ -220,6 +253,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
                 </div>
               )}
             </Card>
+            <FactsCard plant={plant} />
             <Button variant="destructive" className="mt-4 h-11 w-full rounded-xl" onClick={() => setDeleteOpen(true)}>
               <Trash2 data-icon="inline-start" /> Slett planten
             </Button>
@@ -236,10 +270,10 @@ export function PlantDetailScreen({ id }: { id: string }) {
             <>
               <DialogHeader className="px-2 pt-2">
                 <DialogTitle className="text-base">{formatDate(viewPhoto.takenAt)}</DialogTitle>
-                <DialogDescription>{plant.name}</DialogDescription>
+                <DialogDescription>{plantTitle(plant)}</DialogDescription>
               </DialogHeader>
               <div className="overflow-hidden rounded-lg bg-muted">
-                <BlobImage blob={viewPhoto.blob} alt={plant.name} className="max-h-[65dvh] w-full object-contain" />
+                <BlobImage blob={viewPhoto.blob} alt={plantTitle(plant)} className="max-h-[65dvh] w-full object-contain" />
               </div>
               <DialogFooter className="px-2 pb-2">
                 <Button variant="destructive" size="sm" onClick={() => deletePhoto(viewPhoto)}>
@@ -254,7 +288,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Slette {plant.name}?</DialogTitle>
+            <DialogTitle>Slette {plantTitle(plant)}?</DialogTitle>
             <DialogDescription>Planten, {photos.length} bilder og egne oppgaver slettes. Dette kan ikke angres.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -268,6 +302,69 @@ export function PlantDetailScreen({ id }: { id: string }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/** Illustrasjonsbildet fra Wikipedia, med kilde. Vises under egne bilder. */
+function ReferenceImage({ plantId, alt }: { plantId: string; alt: string }) {
+  const image = useLiveQuery(() => db.assets.get(refImageId(plantId)), [plantId]);
+  if (!image) return null;
+  return (
+    <figure className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
+      <BlobImage blob={image.blob} alt={alt} className="max-h-72 w-full object-cover" />
+      <figcaption className="flex items-center justify-between gap-3 px-3 py-2 text-xs text-muted-foreground">
+        <span className="min-w-0 truncate">
+          Illustrasjonsbilde ·{" "}
+          <a href={image.sourceUrl} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+            {image.credit}
+          </a>
+        </span>
+        <button type="button" className="shrink-0 font-medium hover:text-foreground" onClick={() => removeReferenceImage(plantId)}>
+          Fjern
+        </button>
+      </figcaption>
+    </figure>
+  );
+}
+
+const DROUGHT_LABELS: Record<DroughtTolerance, string> = { lav: "Tåler tørke dårlig", middel: "Tåler noe tørke", god: "Tåler tørke godt" };
+const METHOD_LABELS: Record<PropagationMethod, string> = { deling: "Deling", stiklinger: "Stiklinger", fro: "Frø", ingen: "Bør stå i fred" };
+
+/** Dyrkingsfakta fra staudelisten eller KI-leverandøren. Vises ikke når planten ikke er slått opp. */
+function FactsCard({ plant }: { plant: Plant }) {
+  const found = factsFor(plant);
+  if (!found) return null;
+  const { facts, source } = found;
+  const size = (r: [number, number]) => (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`);
+  const { method, everyYears, months = [], note } = facts.propagation;
+  const propagation = [
+    method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : METHOD_LABELS[method],
+    months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", "),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <Card className="mt-3 gap-3 px-4">
+      <p className="text-sm font-semibold">Dyrking</p>
+      <Row label="Herdighet" value={facts.hardiness} />
+      <Row label="Lys" value={capitalize(facts.light.join(", "))} />
+      <Row label="Størrelse" value={`${size(facts.height)} cm høy${facts.spread ? `, ${size(facts.spread)} cm bred` : ""}`} />
+      <Row label="Tørke" value={DROUGHT_LABELS[facts.droughtTolerance]} />
+      {facts.soil && <Block label="Jord" value={facts.soil} />}
+      {facts.watering && <Block label="Vanning" value={facts.watering} />}
+      <Block label="Formering" value={propagation} note={note} />
+      <p className="text-xs text-muted-foreground">{source === "liste" ? "Fra appens staudeliste. Verdiene er veiledende." : "Fra KI-leverandøren. Kan inneholde feil."}</p>
+    </Card>
+  );
+}
+
+function Block({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm">{value}</p>
+      {note && <p className="mt-0.5 text-sm text-muted-foreground">{note}</p>}
+    </div>
   );
 }
 

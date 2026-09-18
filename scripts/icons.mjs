@@ -40,6 +40,14 @@ for (const t of targets) {
   console.log("skrev", t.file);
 }
 
+// Appikonet i Xcode-prosjektet (ios/). Uten avrunding og gjennomsiktighet: iOS runder av selv.
+const iosIcon = await sharp(Buffer.from(svg({ size: 1024, padding: 125, radius: 0 })))
+  .flatten({ background: "#2f6b45" })
+  .png()
+  .toBuffer();
+await writeFile(new URL("../ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png", import.meta.url), iosIcon);
+console.log("skrev iOS-appikonet");
+
 const favicon = await sharp(Buffer.from(svg({ size: 64, padding: 8, radius: 14 }))).png().toBuffer();
 await writeFile(new URL("../src/app/icon.png", import.meta.url), favicon);
 console.log("skrev src/app/icon.png");

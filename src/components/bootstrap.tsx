@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { buildStandardRules, standardRuleKey } from "@/lib/care-rules";
 import { DEFAULT_SETTINGS, type CareRule } from "@/lib/types";
 import { syncSchedule } from "@/lib/push";
+import { ensureReferenceImages } from "@/lib/plant-image";
+import { ensurePlantFacts } from "@/lib/plant-facts";
 
 /**
  * Rydder opp dupliserte standardregler (kunne oppstå når oppstarten kjørte to ganger samtidig),
@@ -31,6 +33,14 @@ async function prepareDatabase() {
       await db.rules.bulkDelete([...remap.keys()]);
     }
 
+    // Standardregler som har fått aldersintervall i en nyere versjon (deling av stauder): oppdater den lagrede regelen.
+    for (const t of buildStandardRules(Date.now())) {
+      const stored = kept.get(standardRuleKey(t));
+      if (t.everyYears && stored && stored.everyYears === undefined) {
+        await db.rules.update(stored.id, { everyYears: t.everyYears, description: t.description });
+      }
+    }
+
     if (!settings.seededRules) {
       const missing = buildStandardRules(Date.now()).filter((r) => !kept.has(standardRuleKey(r)));
       if (missing.length > 0) await db.rules.bulkPut(missing);
@@ -50,6 +60,8 @@ export function Bootstrap() {
         const stale = !settings.pushLastSync || Date.now() - settings.pushLastSync > 6 * 3600_000;
         if (stale) syncSchedule(settings).catch(() => undefined);
       }
+      ensureReferenceImages().catch(() => undefined);
+      ensurePlantFacts().catch(() => undefined);
     })().catch((err) => console.warn("Klargjøring av databasen feilet", err));
     return () => {
       cancelled = true;

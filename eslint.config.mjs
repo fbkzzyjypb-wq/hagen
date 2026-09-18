@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Xcode-prosjektet inneholder en kopi av den bygde web-appen.
+    "ios/**",
   ]),
 ]);
 

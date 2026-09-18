@@ -4,10 +4,11 @@ import { EMPTY } from "@/lib/hooks";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Settings, Plus, Map as MapIcon, ChevronRight, Bell, Camera, Sprout } from "lucide-react";
+import { Plus, Map as MapIcon, ChevronRight, Bell, Camera, Sprout, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
+import { GardenPreview } from "@/components/garden-preview";
 import { Page, Section } from "@/components/page";
 import { TaskRow } from "@/components/task-row";
 import { AskClaudeButton } from "@/components/ask-claude";
@@ -17,6 +18,9 @@ import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
 import { tasksForMonth } from "@/lib/tasks";
 import { currentMonth, currentYear, monthName, formatRelative } from "@/lib/dates";
+import { isPlaced } from "@/lib/geometry";
+import { bedsOf } from "@/lib/beds";
+import { plantTitle } from "@/lib/types";
 
 export function HomeScreen() {
   const settings = useSettings();
@@ -25,6 +29,8 @@ export function HomeScreen() {
   const completions = useLiveQuery(() => db.completions.where("year").equals(currentYear()).toArray(), []) ?? EMPTY;
   const recentPhotos = useLiveQuery(() => db.photos.orderBy("takenAt").reverse().limit(8).toArray(), []) ?? EMPTY;
   const photoCount = useLiveQuery(() => db.photos.count(), []) ?? 0;
+  const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
+  const bedCount = useMemo(() => bedsOf(areas).length, [areas]);
   const [addOpen, setAddOpen] = useState(false);
 
   const month = currentMonth();
@@ -34,7 +40,7 @@ export function HomeScreen() {
   const done = tasks.length - open.length;
   const progress = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
   const plantById = useMemo(() => new Map(plants.map((p) => [p.id, p])), [plants]);
-  const onMap = plants.filter((p) => p.position).length;
+  const onMap = plants.filter(isPlaced).length;
 
   const hour = new Date().getHours();
   const greeting = hour < 10 ? "God morgen" : hour < 18 ? "God dag" : "God kveld";
@@ -42,7 +48,7 @@ export function HomeScreen() {
   return (
     <>
       <PageHeader
-        title={settings.gardenName}
+        title="Hei"
         subtitle={`${greeting} · ${new Intl.DateTimeFormat("nb-NO", { weekday: "long", day: "numeric", month: "long" }).format(new Date())}`}
         action={
           <Button variant="ghost" size="icon-lg" className="rounded-full" nativeButton={false} render={<Link href="/innstillinger/" aria-label="Innstillinger" />}>
@@ -51,6 +57,11 @@ export function HomeScreen() {
         }
       />
       <Page>
+        {settings.showMap && (
+          <div className="mb-3">
+            <GardenPreview plants={plants} width={settings.mapWidth} height={settings.mapHeight} />
+          </div>
+        )}
         <Card className="overflow-hidden border-0 bg-primary text-primary-foreground ring-0 [--card-spacing:--spacing(5)]">
           <div className="flex flex-col gap-4 px-(--card-spacing)">
             <div className="flex items-start justify-between">
@@ -92,18 +103,20 @@ export function HomeScreen() {
           </Card>
         )}
 
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className={`mt-4 grid gap-2 ${settings.showMap ? "grid-cols-3" : "grid-cols-2"}`}>
           <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" onClick={() => setAddOpen(true)}>
             <Plus className="size-5 text-primary" />
             <span className="text-xs">Ny plante</span>
           </Button>
-          <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" nativeButton={false} render={<Link href="/kart/" />}>
-            <MapIcon className="size-5 text-primary" />
-            <span className="text-xs">Hagekart</span>
-          </Button>
-          <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" nativeButton={false} render={<Link href="/planter/" />}>
+          {settings.showMap && (
+            <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" nativeButton={false} render={<Link href="/kart/" />}>
+              <MapIcon className="size-5 text-primary" />
+              <span className="text-xs">Hagekart</span>
+            </Button>
+          )}
+          <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" nativeButton={false} render={<Link href="/identifiser/" />}>
             <Camera className="size-5 text-primary" />
-            <span className="text-xs">Ta bilde</span>
+            <span className="text-xs">Identifiser</span>
           </Button>
         </div>
 
@@ -132,9 +145,9 @@ export function HomeScreen() {
                 return (
                   <Link key={p.id} href={`/plante/?id=${p.plantId}`} className="w-28 shrink-0">
                     <div className="aspect-square overflow-hidden rounded-xl bg-muted">
-                      <BlobImage blob={p.thumb} alt={plant?.name ?? "Bilde"} className="size-full object-cover" />
+                      <BlobImage blob={p.thumb} alt={plant ? plantTitle(plant) : "Bilde"} className="size-full object-cover" />
                     </div>
-                    <p className="mt-1 truncate text-xs font-medium">{plant?.name ?? "Ukjent plante"}</p>
+                    <p className="mt-1 truncate text-xs font-medium">{plant ? plantTitle(plant) : "Ukjent plante"}</p>
                     <p className="truncate text-[11px] text-muted-foreground">{formatRelative(p.takenAt)}</p>
                   </Link>
                 );
@@ -146,7 +159,7 @@ export function HomeScreen() {
         <Section title="Hagen i tall">
           <div className="grid grid-cols-3 gap-2">
             <Stat label="Planter" value={plants.length} href="/planter/" />
-            <Stat label="På kartet" value={onMap} href="/kart/" />
+            {settings.showMap ? <Stat label="På kartet" value={onMap} href="/kart/" /> : <Stat label="Bed" value={bedCount} href="/planter/" />}
             <Stat label="Bilder" value={photoCount} href="/planter/" />
           </div>
         </Section>

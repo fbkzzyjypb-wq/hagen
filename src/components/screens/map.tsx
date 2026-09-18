@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useGesture, useDrag } from "@use-gesture/react";
-import { Maximize2, MapPin, PenLine, Undo2, X, Check, Trash2, ChevronRight, Plus, Settings } from "lucide-react";
+import { Maximize2, MapPin, PenLine, Undo2, X, Check, Trash2, ChevronRight, Plus, Settings, Image as ImageIcon, Move, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -16,11 +16,13 @@ import { PlantThumb } from "@/components/plant-list-item";
 import { db } from "@/lib/db";
 import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
-import { AREA_KINDS, areaInfo, categoryInfo, type Area, type AreaKind, type Plant, type Point } from "@/lib/types";
-import { centroid, clamp, pointInPolygon, polygonArea, snap } from "@/lib/geometry";
+import { AREA_KINDS, areaInfo, categoryInfo, plantTitle, type Area, type AreaKind, type MapBackground, type Plant, type Point } from "@/lib/types";
+import { compressImageWithSize } from "@/lib/images";
+import { PixelGlyph, hasPixelIcon } from "@/components/pixel-icons";
+import { centroid, clamp, distanceToPolyline, isPlaced, pointInPolygon, polygonArea, polylineLength, polylineMidpoint, snap } from "@/lib/geometry";
 
 type View = { x: number; y: number; s: number };
-type Mode = { kind: "view" } | { kind: "place"; plantId: string } | { kind: "draw" };
+type Mode = { kind: "view" } | { kind: "place"; plantId: string; asLine?: boolean } | { kind: "draw" } | { kind: "bg" };
 type Selection = { type: "plant"; id: string } | { type: "area"; id: string } | null;
 
 const MIN_S = 6;
@@ -30,6 +32,23 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
   const settings = useSettings();
   const plants = useLiveQuery(() => db.plants.toArray(), []) ?? EMPTY;
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
+  const background = useLiveQuery(() => db.mapBackground.get("bg"), []);
+  const [bgDraft, setBgDraft] = useState<MapBackground | null>(null);
+  const bg = bgDraft ?? background ?? undefined;
+  const bgRef = useRef<MapBackground | undefined>(bg);
+  useEffect(() => {
+    bgRef.current = bg;
+  }, [bg]);
+  const bgBlob = background?.blob;
+  const bgUrl = useMemo(() => (bgBlob && typeof window !== "undefined" ? URL.createObjectURL(bgBlob) : undefined), [bgBlob]);
+  useEffect(() => {
+    if (!bgUrl) return;
+    return () => URL.revokeObjectURL(bgUrl);
+  }, [bgUrl]);
+  const [bgSheetOpen, setBgSheetOpen] = useState(false);
+  const [bgBusy, setBgBusy] = useState(false);
+  const bgInputRef = useRef<HTMLInputElement>(null);
+  const bgSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const W = settings.mapWidth;
   const H = settings.mapHeight;
 
@@ -39,6 +58,10 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
   const [userView, setView] = useState<View | null>(null);
 
   const [mode, setMode] = useState<Mode>(placePlantId ? { kind: "place", plantId: placePlantId } : { kind: "view" });
+  const modeRef = useRef<Mode>(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
   const [selection, setSelection] = useState<Selection>(focusPlantId ? { type: "plant", id: focusPlantId } : null);
   const [draft, setDraft] = useState<Point[]>([]);
   const [dragging, setDragging] = useState<{ id: string; pos: Point } | null>(null);
@@ -68,9 +91,10 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
     if (userView) return userView;
     if (!size.w || !size.h) return { x: 0, y: 0, s: 30 };
     const focus = focusPlantId ? plantById.get(focusPlantId) : undefined;
-    if (focus?.position) {
-      const s = 50;
-      return { s, x: size.w / 2 - focus.position.x * s, y: size.h / 2 - focus.position.y * s - 40 };
+    const focusPoint = focus?.position ?? (focus?.line && focus.line.length >= 2 ? polylineMidpoint(focus.line) : undefined);
+    if (focusPoint) {
+      const s = focus?.line ? clamp(Math.min((size.w - 48) / Math.max(1, polylineLength(focus.line)), 50), MIN_S, 50) : 50;
+      return { s, x: size.w / 2 - focusPoint.x * s, y: size.h / 2 - focusPoint.y * s - 40 };
     }
     const s = clamp(Math.min((size.w - 32) / W, (size.h - 220) / H), MIN_S, MAX_S);
     return { s, x: (size.w - W * s) / 2, y: (size.h - H * s) / 2 - 20 };
@@ -92,10 +116,16 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
 
   const handleTapAt = useCallback(
     async (clientX: number, clientY: number) => {
+      if (mode.kind === "bg") return;
       const m = toMeters(clientX, clientY);
       if (mode.kind === "place") {
         const pos = { x: snap(clamp(m.x, 0, W)), y: snap(clamp(m.y, 0, H)) };
-        await db.plants.update(mode.plantId, { position: pos, updatedAt: Date.now() });
+        const asLine = mode.asLine ?? plantById.get(mode.plantId)?.category === "hekk";
+        if (asLine) {
+          setDraft((d) => [...d, pos]);
+          return;
+        }
+        await db.plants.update(mode.plantId, { position: pos, line: undefined, updatedAt: Date.now() });
         setMode({ kind: "view" });
         setSelection({ type: "plant", id: mode.plantId });
         return;
@@ -104,15 +134,37 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
         setDraft((d) => [...d, { x: snap(clamp(m.x, 0, W)), y: snap(clamp(m.y, 0, H)) }]);
         return;
       }
+      const tolerance = Math.max(0.5, 14 / viewRef.current.s);
+      const lineHit = plants
+        .filter((p) => p.line && p.line.length >= 2)
+        .map((p) => ({ p, d: distanceToPolyline(m, p.line!) }))
+        .sort((a, b) => a.d - b.d)[0];
+      if (lineHit && lineHit.d <= tolerance) {
+        setSelection({ type: "plant", id: lineHit.p.id });
+        return;
+      }
       const hit = [...sortedAreas].reverse().find((a) => pointInPolygon(m, a.points));
       setSelection(hit ? { type: "area", id: hit.id } : null);
     },
-    [mode, toMeters, W, H, sortedAreas]
+    [mode, toMeters, W, H, sortedAreas, plants, plantById]
   );
+
+  /** Oppdaterer bakgrunnsbildet under en bevegelse, og lagrer når bevegelsen er ferdig. */
+  const updateBackground = useCallback((next: MapBackground, persist: boolean) => {
+    setBgDraft(next);
+    if (bgSaveTimer.current) clearTimeout(bgSaveTimer.current);
+    if (persist) db.mapBackground.put(next).catch(() => undefined);
+    else bgSaveTimer.current = setTimeout(() => db.mapBackground.put(next).catch(() => undefined), 400);
+  }, []);
+
+  /** Skalerer bildet med faktor k rundt et punkt (i meter). */
+  const scaleBackground = useCallback((cur: MapBackground, k: number, around: Point): MapBackground => {
+    return { ...cur, width: cur.width * k, height: cur.height * k, x: around.x - (around.x - cur.x) * k, y: around.y - (around.y - cur.y) * k };
+  }, []);
 
   useGesture(
     {
-      onDrag: ({ pinching, cancel, first, tap, delta: [dx, dy], event }) => {
+      onDrag: ({ pinching, cancel, first, last, tap, delta: [dx, dy], event }) => {
         if (pinching) return cancel();
         const target = event.target as Element;
         // Bare berøringer på selve kartet skal panorere/velge. Knapper og kort over kartet håndterer seg selv.
@@ -123,18 +175,33 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
           handleTapAt(e.clientX, e.clientY);
           return;
         }
+        if (modeRef.current.kind === "bg") {
+          const cur = bgRef.current;
+          if (!cur) return;
+          const v = viewRef.current;
+          updateBackground({ ...cur, x: cur.x + dx / v.s, y: cur.y + dy / v.s }, last);
+          return;
+        }
         setView(() => {
           const v = viewRef.current;
           return { ...v, x: v.x + dx, y: v.y + dy };
         });
       },
-      onPinch: ({ origin: [ox, oy], first, offset: [s], memo }) => {
+      onPinch: ({ origin: [ox, oy], first, last, offset: [s], memo }) => {
         const el = containerRef.current!;
         if (first) {
           const r = el.getBoundingClientRect();
-          memo = { ...viewRef.current, px: ox - r.left, py: oy - r.top };
+          memo = { ...viewRef.current, px: ox - r.left, py: oy - r.top, bg: bgRef.current };
         }
         const k = s / memo.s;
+        if (modeRef.current.kind === "bg") {
+          const cur = memo.bg as MapBackground | undefined;
+          if (cur) {
+            const around = { x: (memo.px - memo.x) / memo.s, y: (memo.py - memo.y) / memo.s };
+            updateBackground(scaleBackground(cur, k, around), last);
+          }
+          return memo;
+        }
         setView({ s, x: memo.px - (memo.px - memo.x) * k, y: memo.py - (memo.py - memo.y) * k });
         return memo;
       },
@@ -144,6 +211,13 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
         const r = el.getBoundingClientRect();
         const px = event.clientX - r.left;
         const py = event.clientY - r.top;
+        if (modeRef.current.kind === "bg") {
+          const cur = bgRef.current;
+          if (!cur) return;
+          const v = viewRef.current;
+          updateBackground(scaleBackground(cur, Math.exp(-dy * 0.002), { x: (px - v.x) / v.s, y: (py - v.y) / v.s }), false);
+          return;
+        }
         setView(() => {
           const v = viewRef.current;
           const s = clamp(v.s * Math.exp(-dy * 0.002), MIN_S, MAX_S);
@@ -159,6 +233,52 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
       pinch: { from: () => [viewRef.current.s, 0], scaleBounds: { min: MIN_S, max: MAX_S }, rubberband: false },
     }
   );
+
+  async function uploadBackground(file?: File) {
+    if (!file) return;
+    setBgBusy(true);
+    try {
+      const { blob, width, height } = await compressImageWithSize(file, 2048, 0.85);
+      const aspect = width / height;
+      let w = W;
+      let h = W / aspect;
+      if (h > H) {
+        h = H;
+        w = H * aspect;
+      }
+      const next: MapBackground = {
+        id: "bg",
+        blob,
+        pixelWidth: width,
+        pixelHeight: height,
+        x: (W - w) / 2,
+        y: (H - h) / 2,
+        width: w,
+        height: h,
+        opacity: background?.opacity ?? 1,
+      };
+      await db.mapBackground.put(next);
+      setBgDraft(null);
+      setBgSheetOpen(false);
+      setSelection(null);
+      setMode({ kind: "bg" });
+    } finally {
+      setBgBusy(false);
+      if (bgInputRef.current) bgInputRef.current.value = "";
+    }
+  }
+
+  function setBackgroundOpacity(opacity: number) {
+    const cur = bgRef.current;
+    if (cur) updateBackground({ ...cur, opacity }, true);
+  }
+
+  async function removeBackground() {
+    await db.mapBackground.delete("bg");
+    setBgDraft(null);
+    setBgSheetOpen(false);
+    if (mode.kind === "bg") setMode({ kind: "view" });
+  }
 
   async function finishDraw() {
     if (draft.length < 3) return;
@@ -177,8 +297,23 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
   }
 
   async function removeFromMap(plantId: string) {
-    await db.plants.update(plantId, { position: undefined, updatedAt: Date.now() });
+    await db.plants.update(plantId, { position: undefined, line: undefined, updatedAt: Date.now() });
     setSelection(null);
+  }
+
+  async function finishLine() {
+    if (mode.kind !== "place" || draft.length < 2) return;
+    await db.plants.update(mode.plantId, { line: draft, position: undefined, updatedAt: Date.now() });
+    setDraft([]);
+    setSelection({ type: "plant", id: mode.plantId });
+    setMode({ kind: "view" });
+  }
+
+  function startPlacing(plantId: string, asLine?: boolean) {
+    setPickOpen(false);
+    setSelection(null);
+    setDraft([]);
+    setMode({ kind: "place", plantId, asLine });
   }
 
   async function deleteArea(id: string) {
@@ -189,6 +324,8 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
   const selectedPlant = selection?.type === "plant" ? plantById.get(selection.id) : undefined;
   const selectedArea = selection?.type === "area" ? areas.find((a) => a.id === selection.id) : undefined;
   const placingPlant = mode.kind === "place" ? plantById.get(mode.plantId) : undefined;
+  const placingAsLine = mode.kind === "place" && (mode.asLine ?? placingPlant?.category === "hekk");
+  const placedCount = plants.filter(isPlaced).length;
   const s = view.s;
   const gridStep = s >= 18 ? 1 : 5;
   const showLabels = s >= 22;
@@ -203,15 +340,40 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
   return (
     <div
       ref={containerRef}
-      className="fixed inset-x-0 top-0 overflow-hidden bg-[#e6ecdc] select-none"
-      style={{ bottom: "calc(var(--tabbar-height) + var(--safe-bottom))", touchAction: "none" }}
+      className="fixed inset-x-0 top-0 overflow-hidden select-none"
+      style={{ bottom: "calc(var(--tabbar-height) + var(--safe-bottom))", touchAction: "none", backgroundColor: bg ? "#CFE0B4" : "#e6ecdc" }}
     >
       <svg className="size-full" role="img" aria-label="Hagekart">
         <g transform={`translate(${view.x} ${view.y}) scale(${s})`}>
-          <rect x={0} y={0} width={W} height={H} fill="#f4f7ee" stroke="#a9b897" strokeWidth={2 / s} rx={0.2} />
-          {gridLines.map((l, i) => (
-            <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.major ? "#c9d4ba" : "#e1e8d4"} strokeWidth={(l.major ? 1.2 : 0.8) / s} />
+          <rect x={0} y={0} width={W} height={H} fill={bg ? "#CFE0B4" : "#f4f7ee"} rx={0.2} />
+          {bg && bgUrl && (
+            <image
+              href={bgUrl}
+              x={bg.x}
+              y={bg.y}
+              width={bg.width}
+              height={bg.height}
+              opacity={bg.opacity}
+              preserveAspectRatio="none"
+              style={{ pointerEvents: "none" }}
+            />
+          )}
+          {gridLines
+            .filter((l) => !bg || l.major)
+            .map((l, i) => (
+            <line
+              key={i}
+              x1={l.x1}
+              y1={l.y1}
+              x2={l.x2}
+              y2={l.y2}
+              stroke={bg ? "#ffffff" : l.major ? "#c9d4ba" : "#e1e8d4"}
+              strokeOpacity={bg ? 0.16 : 1}
+              strokeWidth={(l.major ? 1.2 : 0.8) / s}
+            />
           ))}
+
+          <g style={{ pointerEvents: mode.kind === "bg" ? "none" : undefined, opacity: mode.kind === "bg" ? 0.5 : 1 }}>
 
           {sortedAreas.map((a) => {
             const info = areaInfo(a.kind);
@@ -222,7 +384,7 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
                 <polygon
                   points={a.points.map((p) => `${p.x},${p.y}`).join(" ")}
                   fill={info.fill}
-                  fillOpacity={0.85}
+                  fillOpacity={bg ? 0.6 : 0.85}
                   stroke={active ? "#1f513a" : info.stroke}
                   strokeWidth={(active ? 3 : 1.5) / s}
                   strokeLinejoin="round"
@@ -245,7 +407,7 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
             );
           })}
 
-          {draft.length > 0 && (
+          {mode.kind === "draw" && draft.length > 0 && (
             <g>
               <polygon
                 points={draft.map((p) => `${p.x},${p.y}`).join(" ")}
@@ -253,6 +415,54 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
                 stroke="#2f6b45"
                 strokeWidth={2 / s}
                 strokeDasharray={`${6 / s} ${4 / s}`}
+              />
+              {draft.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={5 / s} fill="#fff" stroke="#2f6b45" strokeWidth={2 / s} />
+              ))}
+            </g>
+          )}
+
+          {plants
+            .filter((p) => p.line && p.line.length >= 2)
+            .map((p) => {
+              const info = categoryInfo(p.category);
+              const active = selection?.type === "plant" && selection.id === p.id;
+              const mid = polylineMidpoint(p.line!);
+              const pts = p.line!.map((q) => `${q.x},${q.y}`).join(" ");
+              const width = Math.max(0.5, 8 / s);
+              return (
+                <g key={p.id} style={{ pointerEvents: "none" }}>
+                  {active && <polyline points={pts} fill="none" stroke={info.color} strokeOpacity={0.25} strokeWidth={width * 2.2} strokeLinecap="round" strokeLinejoin="round" />}
+                  <polyline points={pts} fill="none" stroke={info.color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round" />
+                  <polyline points={pts} fill="none" stroke="#ffffff" strokeOpacity={0.35} strokeWidth={Math.max(0.1, width * 0.25)} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={`${width * 0.6} ${width * 0.8}`} />
+                  {hasPixelIcon(p.category) && <PixelGlyph category={p.category} x={mid.x} y={mid.y} size={14 / s} />}
+                  {(showLabels || active) && (
+                    <text
+                      x={mid.x}
+                      y={mid.y - (hasPixelIcon(p.category) ? 7 / s : width / 2) - 6 / s}
+                      fontSize={11 / s}
+                      fontWeight={600}
+                      fill="#243325"
+                      textAnchor="middle"
+                      style={{ paintOrder: "stroke", stroke: "rgba(255,255,255,0.9)", strokeWidth: 3 / s }}
+                    >
+                      {plantTitle(p)} · {polylineLength(p.line!).toFixed(0)} m
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+
+          {mode.kind === "place" && placingAsLine && draft.length > 0 && (
+            <g style={{ pointerEvents: "none" }}>
+              <polyline
+                points={draft.map((p) => `${p.x},${p.y}`).join(" ")}
+                fill="none"
+                stroke={placingPlant ? categoryInfo(placingPlant.category).color : "#2f6b45"}
+                strokeOpacity={0.7}
+                strokeWidth={Math.max(0.5, 8 / s)}
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
               {draft.map((p, i) => (
                 <circle key={i} cx={p.x} cy={p.y} r={5 / s} fill="#fff" stroke="#2f6b45" strokeWidth={2 / s} />
@@ -285,6 +495,8 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
                 />
               );
             })}
+          </g>
+          <rect x={0} y={0} width={W} height={H} fill="none" stroke={bg ? "#ffffff" : "#a9b897"} strokeOpacity={bg ? 0.45 : 1} strokeWidth={2 / s} rx={0.2} />
         </g>
       </svg>
 
@@ -294,12 +506,21 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
           <div className="pointer-events-auto rounded-2xl bg-background/85 px-3.5 py-2 shadow-sm ring-1 ring-foreground/10 backdrop-blur-xl">
             <h1 className="font-heading text-lg font-semibold tracking-tight">Hagekart</h1>
             <p className="text-[11px] text-muted-foreground">
-              {W} × {H} m · {plants.filter((p) => p.position).length} av {plants.length} planter plassert
+              {W} × {H} m · {placedCount} av {plants.length} planter plassert
             </p>
           </div>
           <div className="pointer-events-auto flex gap-1.5">
             <Button variant="outline" size="icon-lg" className="rounded-full bg-background/85 shadow-sm backdrop-blur-xl" onClick={fit} aria-label="Tilpass">
               <Maximize2 className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-lg"
+              className="rounded-full bg-background/85 shadow-sm backdrop-blur-xl"
+              aria-label="Bakgrunnsbilde"
+              onClick={() => setBgSheetOpen(true)}
+            >
+              <ImageIcon className="size-4" />
             </Button>
             <Button variant="outline" size="icon-lg" className="rounded-full bg-background/85 shadow-sm backdrop-blur-xl" nativeButton={false} render={<Link href="/innstillinger/" aria-label="Kartstørrelse" />}>
               <Settings className="size-4" />
@@ -315,11 +536,17 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
             <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-background p-3 shadow-lg ring-1 ring-foreground/10">
               <PlantThumb plant={selectedPlant} className="size-12" />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{selectedPlant.name}</p>
+                <p className="truncate font-medium">{plantTitle(selectedPlant)}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {selectedPlant.latinName || categoryInfo(selectedPlant.category).label} · dra for å flytte
+                  {selectedPlant.latinName || categoryInfo(selectedPlant.category).label}
+                  {selectedPlant.line ? ` · rekke på ${polylineLength(selectedPlant.line).toFixed(0)} m` : " · dra for å flytte"}
                 </p>
               </div>
+              {selectedPlant.line && (
+                <Button variant="ghost" size="icon-sm" aria-label="Tegn rekken på nytt" onClick={() => startPlacing(selectedPlant.id, true)}>
+                  <PenLine className="size-4 text-muted-foreground" />
+                </Button>
+              )}
               <Button variant="ghost" size="icon-sm" aria-label="Fjern fra kartet" onClick={() => removeFromMap(selectedPlant.id)}>
                 <Trash2 className="size-4 text-muted-foreground" />
               </Button>
@@ -382,12 +609,88 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
           )}
 
           {mode.kind === "place" && (
-            <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-primary p-3 text-primary-foreground shadow-lg">
-              <MapPin className="size-5 shrink-0" />
-              <p className="flex-1 text-sm font-medium">Trykk på kartet der {placingPlant?.name ?? "planten"} står</p>
-              <Button variant="secondary" size="sm" className="rounded-lg" onClick={() => setMode({ kind: "view" })}>
-                Avbryt
-              </Button>
+            <div className="pointer-events-auto flex flex-col gap-2.5 rounded-2xl bg-primary p-3 text-primary-foreground shadow-lg">
+              <div className="flex items-center gap-3">
+                <MapPin className="size-5 shrink-0" />
+                <p className="flex-1 text-sm font-medium">
+                  {placingAsLine
+                    ? `Trykk langs der ${placingPlant?.name ?? "rekken"} går. ${draft.length === 0 ? "Start i den ene enden." : `${draft.length} ${draft.length === 1 ? "punkt" : "punkter"}${draft.length >= 2 ? `, ${polylineLength(draft).toFixed(0)} m` : ""}.`}`
+                    : `Trykk på kartet der ${placingPlant?.name ?? "planten"} står`}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="flex rounded-lg bg-primary-foreground/15 p-0.5 text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft([]);
+                      setMode({ ...mode, asLine: false });
+                    }}
+                    className={`rounded-md px-2.5 py-1 ${!placingAsLine ? "bg-primary-foreground text-primary" : ""}`}
+                  >
+                    Punkt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode({ ...mode, asLine: true })}
+                    className={`rounded-md px-2.5 py-1 ${placingAsLine ? "bg-primary-foreground text-primary" : ""}`}
+                  >
+                    Rekke
+                  </button>
+                </div>
+                {placingAsLine && (
+                  <Button variant="secondary" size="sm" className="rounded-lg" disabled={draft.length === 0} onClick={() => setDraft((d) => d.slice(0, -1))}>
+                    <Undo2 data-icon="inline-start" /> Angre
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto rounded-lg text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground"
+                  onClick={() => {
+                    setDraft([]);
+                    setMode({ kind: "view" });
+                  }}
+                >
+                  Avbryt
+                </Button>
+                {placingAsLine && (
+                  <Button variant="secondary" size="sm" className="rounded-lg" disabled={draft.length < 2} onClick={finishLine}>
+                    <Check data-icon="inline-start" /> Ferdig
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mode.kind === "bg" && (
+            <div className="pointer-events-auto flex flex-col gap-2.5 rounded-2xl bg-background p-3 shadow-lg ring-1 ring-foreground/10">
+              <p className="text-sm">
+                <span className="font-medium">Juster bakgrunnsbildet.</span> Dra for å flytte og klyp for å skalere, til bildet stemmer med rutenettet ({W} × {H} m).
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="mr-1 text-xs text-muted-foreground">Synlighet</span>
+                {[0.4, 0.7, 1].map((o) => (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setBackgroundOpacity(o)}
+                    className={`h-8 rounded-lg border px-2.5 text-xs font-medium ${Math.abs((bg?.opacity ?? 1) - o) < 0.01 ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}
+                  >
+                    {Math.round(o * 100)} %
+                  </button>
+                ))}
+                <Button
+                  size="sm"
+                  className="ml-auto rounded-lg"
+                  onClick={() => {
+                    setBgDraft(null);
+                    setMode({ kind: "view" });
+                  }}
+                >
+                  <Check data-icon="inline-start" /> Ferdig
+                </Button>
+              </div>
             </div>
           )}
 
@@ -420,6 +723,47 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
         </div>
       </div>
 
+      {/* Bakgrunnsbilde */}
+      <Sheet open={bgSheetOpen} onOpenChange={setBgSheetOpen}>
+        <SheetContent side="bottom" className="rounded-t-3xl px-5 pb-[calc(var(--safe-bottom)+1.25rem)]">
+          <SheetHeader className="px-0">
+            <SheetTitle className="text-lg">Bakgrunnsbilde</SheetTitle>
+            <SheetDescription>
+              Legg et satellittbilde, flyfoto eller en tomtetegning under kartet. Etterpå flytter og skalerer du bildet så det stemmer med rutenettet i meter.
+            </SheetDescription>
+          </SheetHeader>
+          <input ref={bgInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => uploadBackground(e.target.files?.[0])} />
+          <div className="flex flex-col gap-2">
+            <Button size="lg" className="h-12 rounded-xl" disabled={bgBusy} onClick={() => bgInputRef.current?.click()}>
+              {bgBusy ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Upload data-icon="inline-start" />}
+              {bgBusy ? "Behandler bildet ..." : background ? "Bytt bilde" : "Last opp bilde"}
+            </Button>
+            {background && (
+              <>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-12 rounded-xl"
+                  onClick={() => {
+                    setBgSheetOpen(false);
+                    setSelection(null);
+                    setMode({ kind: "bg" });
+                  }}
+                >
+                  <Move data-icon="inline-start" /> Juster plassering og størrelse
+                </Button>
+                <Button variant="destructive" size="lg" className="h-12 rounded-xl" onClick={removeBackground}>
+                  <Trash2 data-icon="inline-start" /> Fjern bilde
+                </Button>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Tips: Ta et skjermbilde av tomten med satellittvisning i Google Maps eller Apple Kart, eller flyfoto på norgeskart.no. Sett kartstørrelsen i innstillinger til tomtens mål først, så er bildet enkelt å tilpasse.
+          </p>
+        </SheetContent>
+      </Sheet>
+
       {/* Velg plante som skal plasseres */}
       <Sheet open={pickOpen} onOpenChange={setPickOpen}>
         <SheetContent side="bottom" className="max-h-[80dvh] rounded-t-3xl px-0 pb-[calc(var(--safe-bottom)+0.5rem)]">
@@ -433,22 +777,20 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
             ) : (
               <ul className="divide-y divide-border">
                 {[...plants]
-                  .sort((a, b) => Number(!!a.position) - Number(!!b.position) || a.name.localeCompare(b.name, "nb"))
+                  .sort((a, b) => Number(isPlaced(a)) - Number(isPlaced(b)) || a.name.localeCompare(b.name, "nb"))
                   .map((p) => (
                     <li key={p.id}>
                       <button
                         type="button"
                         className="flex w-full items-center gap-3 px-5 py-2.5 text-left active:bg-muted/60"
-                        onClick={() => {
-                          setPickOpen(false);
-                          setSelection(null);
-                          setMode({ kind: "place", plantId: p.id });
-                        }}
+                        onClick={() => startPlacing(p.id)}
                       >
                         <PlantThumb plant={p} className="size-10" />
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[15px] font-medium">{p.name}</span>
-                          <span className="block truncate text-xs text-muted-foreground">{p.position ? "Allerede på kartet · flytt" : categoryInfo(p.category).label}</span>
+                          <span className="block truncate text-[15px] font-medium">{plantTitle(p)}</span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {isPlaced(p) ? "Allerede på kartet · flytt" : p.category === "hekk" ? "Hekk · tegnes som rekke" : categoryInfo(p.category).label}
+                          </span>
                         </span>
                         <ChevronRight className="size-4 text-muted-foreground/60" />
                       </button>
@@ -475,10 +817,7 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
       <PlantForm
         open={newPlantOpen}
         onOpenChange={setNewPlantOpen}
-        onSaved={(p) => {
-          setSelection(null);
-          setMode({ kind: "place", plantId: p.id });
-        }}
+        onSaved={(p) => startPlacing(p.id)}
       />
 
       {/* Navn og type på nytt / endret område */}
@@ -578,6 +917,10 @@ function PlantMarker({
   );
 
   const r = (selected ? 16 : 13) / scale;
+  const pixel = hasPixelIcon(plant.category);
+  const glyphSize = (selected ? 18 : 14) / scale;
+  const hitSize = 28 / scale;
+  const labelY = pixel ? glyphSize / 2 + 9 / scale : r + 11 / scale;
   return (
     <g
       {...bind()}
@@ -585,21 +928,30 @@ function PlantMarker({
       transform={`translate(${pos.x} ${pos.y})`}
       style={{ cursor: draggable ? "grab" : "pointer", touchAction: "none" }}
     >
-      {selected && <circle r={r * 1.55} fill={info.color} fillOpacity={0.18} />}
-      <circle r={r} fill="#fff" stroke={info.color} strokeWidth={(selected ? 3 : 2) / scale} />
-      <text fontSize={(selected ? 16 : 13) / scale} textAnchor="middle" dominantBaseline="central" style={{ pointerEvents: "none" }}>
-        {info.emoji}
-      </text>
+      {selected && <circle r={pixel ? glyphSize * 0.9 : r * 1.55} fill={info.color} fillOpacity={0.18} />}
+      {pixel ? (
+        <>
+          <rect x={-hitSize / 2} y={-hitSize / 2} width={hitSize} height={hitSize} fill="transparent" />
+          <PixelGlyph category={plant.category} size={glyphSize} />
+        </>
+      ) : (
+        <>
+          <circle r={r} fill="#fff" stroke={info.color} strokeWidth={(selected ? 3 : 2) / scale} />
+          <text fontSize={(selected ? 16 : 13) / scale} textAnchor="middle" dominantBaseline="central" style={{ pointerEvents: "none" }}>
+            {info.emoji}
+          </text>
+        </>
+      )}
       {showLabel && (
         <text
-          y={r + 11 / scale}
+          y={labelY}
           fontSize={11 / scale}
           fontWeight={600}
           fill="#243325"
           textAnchor="middle"
           style={{ pointerEvents: "none", paintOrder: "stroke", stroke: "rgba(255,255,255,0.9)", strokeWidth: 3 / scale }}
         >
-          {plant.name}
+          {plantTitle(plant)}
         </text>
       )}
     </g>

@@ -1,7 +1,9 @@
 import { db } from "./db";
-import type { Area, CareRule, Photo, Plant, Settings, TaskCompletion } from "./types";
+import type { Area, Asset, CareRule, MapBackground, Photo, Plant, Settings, TaskCompletion } from "./types";
 
 type ExportedPhoto = Omit<Photo, "blob" | "thumb"> & { blob: string; thumb: string; type: string };
+type ExportedBackground = Omit<MapBackground, "blob"> & { blob: string; type: string };
+type ExportedAsset = Omit<Asset, "blob"> & { blob: string; type: string };
 
 export interface ExportFile {
   app: "hagen";
@@ -13,6 +15,8 @@ export interface ExportFile {
   completions: TaskCompletion[];
   settings?: Settings;
   photos: ExportedPhoto[];
+  background?: ExportedBackground;
+  assets?: ExportedAsset[];
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -32,14 +36,20 @@ function base64ToBlob(b64: string, type: string): Blob {
 }
 
 export async function exportAll(): Promise<Blob> {
-  const [plants, areas, rules, completions, settings, photos] = await Promise.all([
+  const [plants, areas, rules, completions, settings, photos, background, assets] = await Promise.all([
     db.plants.toArray(),
     db.areas.toArray(),
     db.rules.toArray(),
     db.completions.toArray(),
     db.settings.get("settings"),
     db.photos.toArray(),
+    db.mapBackground.get("bg"),
+    db.assets.toArray(),
   ]);
+  const exportedAssets: ExportedAsset[] = [];
+  for (const a of assets) {
+    exportedAssets.push({ ...a, type: a.blob.type || "image/jpeg", blob: await blobToBase64(a.blob) });
+  }
   const exportedPhotos: ExportedPhoto[] = [];
   for (const p of photos) {
     exportedPhotos.push({
@@ -59,6 +69,8 @@ export async function exportAll(): Promise<Blob> {
     completions,
     settings: settings ? { ...settings, pushSubscription: undefined, pushLastSync: undefined } : undefined,
     photos: exportedPhotos,
+    background: background ? { ...background, type: background.blob.type || "image/jpeg", blob: await blobToBase64(background.blob) } : undefined,
+    assets: exportedAssets,
   };
   return new Blob([JSON.stringify(data)], { type: "application/json" });
 }
@@ -74,8 +86,16 @@ export async function importAll(file: Blob): Promise<{ plants: number; photos: n
     blob: base64ToBlob(p.blob, p.type),
     thumb: base64ToBlob(p.thumb, p.type),
   }));
-  await db.transaction("rw", [db.plants, db.areas, db.rules, db.completions, db.settings, db.photos], async () => {
-    await Promise.all([db.plants.clear(), db.areas.clear(), db.rules.clear(), db.completions.clear(), db.photos.clear()]);
+  await db.transaction("rw", [db.plants, db.areas, db.rules, db.completions, db.settings, db.photos, db.mapBackground, db.assets], async () => {
+    await Promise.all([db.plants.clear(), db.areas.clear(), db.rules.clear(), db.completions.clear(), db.photos.clear(), db.mapBackground.clear(), db.assets.clear()]);
+    for (const a of data.assets ?? []) {
+      const { type, blob, ...rest } = a;
+      await db.assets.put({ ...rest, blob: base64ToBlob(blob, type) });
+    }
+    if (data.background) {
+      const { type, blob, ...rest } = data.background;
+      await db.mapBackground.put({ ...rest, id: "bg", blob: base64ToBlob(blob, type) });
+    }
     await db.plants.bulkPut(data.plants);
     await db.areas.bulkPut(data.areas);
     await db.rules.bulkPut(data.rules);

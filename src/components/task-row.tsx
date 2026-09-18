@@ -1,5 +1,7 @@
 "use client";
 
+import { plantTitle } from "@/lib/types";
+
 import { useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown } from "lucide-react";
@@ -64,7 +66,7 @@ export function TaskRow({ task, compact = false }: { task: TaskItem; compact?: b
                 href={`/plante/?id=${p.id}`}
                 className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground"
               >
-                {p.name}
+                {plantTitle(p)}
               </Link>
             ))}
             {!expanded && task.plants.length > 3 && (

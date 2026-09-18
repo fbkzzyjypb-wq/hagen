@@ -5,6 +5,8 @@ type RuleTemplate = {
   title: string;
   description?: string;
   months: number[];
+  /** Se `CareRule.everyYears`. */
+  everyYears?: number;
 };
 
 /** Generelle oppgaver per plantekategori, tilpasset norsk klima (sone H3–H4, juster etter behov). */
@@ -84,8 +86,10 @@ export const CATEGORY_RULES: Record<PlantCategory, RuleTemplate[]> = {
     {
       key: "del-stauder",
       title: "Del og flytt stauder",
-      description: "Del store stauder når skuddene er et par cm, eller på sensommeren.",
+      description:
+        "Kommer hvert tredje år ut fra plantens alder. Del hvis planten er hul i midten, blomstrer dårligere eller velter. Sommer- og høstblomstrende deles om våren når skuddene er et par cm, vårblomstrende på sensommeren. Asters, floks, rudbeckia og dagliljer trenger det oftere. Pion, julerose, stormhatt, bregner og akeleie bør stå i fred.",
       months: [4, 5, 9],
+      everyYears: 3,
     },
     { key: "stotte-stauder", title: "Sett opp støtte", description: "Høye stauder trenger støtte før de faller.", months: [5] },
     { key: "avblomstret-stauder", title: "Fjern avblomstret", description: "Gir gjerne ny blomstring og hindrer frøsetting der du ikke vil ha det.", months: [7, 8] },
@@ -424,6 +428,7 @@ export function rulesFromProfile(profile: PlantProfile, plantId: string, now: nu
     title: t.title,
     description: t.description,
     months: t.months,
+    everyYears: t.everyYears,
     scope: "plant",
     plantId,
     source: "standard",
@@ -448,6 +453,7 @@ export function buildStandardRules(now: number): CareRule[] {
         title: t.title,
         description: t.description,
         months: t.months,
+        everyYears: t.everyYears,
         scope: "category",
         category,
         source: "standard",
