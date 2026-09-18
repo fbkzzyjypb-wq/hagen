@@ -21,7 +21,7 @@ import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
 import { compressImage } from "@/lib/images";
-import { categorizeCandidates, type PlantCandidate } from "@/lib/plant-lookup";
+import { categorizeCandidates, inferCategory, type PlantCandidate } from "@/lib/plant-lookup";
 import { diagnosePlant, identifyPlantPhoto, identifyPlantWithVision } from "@/lib/plant-id";
 import { categoryInfo, plantTitle, type Plant } from "@/lib/types";
 
@@ -223,7 +223,8 @@ export function IdentifyScreen() {
           <div className="flex flex-col gap-2">
             <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Forslag</p>
             {idResult.candidates.map((c, i) => {
-              const info = c.category ? categoryInfo(c.category) : undefined;
+              const candidateCategory = c.category ?? inferCategory(c.latinName);
+              const info = candidateCategory ? categoryInfo(candidateCategory) : undefined;
               const existing = existingFor(c);
               return (
                 <Card key={`${c.latinName}|${c.name}|${i}`} className="gap-2 px-4">
@@ -248,7 +249,7 @@ export function IdentifyScreen() {
                     </Link>
                   )}
                   <div className="flex gap-2">
-                    <Button className="h-10 flex-1 rounded-xl" onClick={() => setFormInitial({ name: c.name, latinName: c.latinName, variety: c.variety, category: c.category, photo: photo ?? undefined })}>
+                    <Button className="h-10 flex-1 rounded-xl" onClick={() => setFormInitial({ name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: photo ?? undefined })}>
                       <Plus data-icon="inline-start" /> Legg til i hagen
                     </Button>
                     <Button

@@ -69,6 +69,8 @@ export interface Plant {
   factsVersion?: number;
   /** Satt når deleregelen er tilpasset stauden. Gjøres bare én gang. */
   factsChecked?: boolean;
+  /** Satt når KI-leverandøren har vurdert kategoriens standardoppgaver for akkurat denne planten. Gjøres én gang per kategori. */
+  tasksChecked?: boolean;
   createdAt: number;
   updatedAt: number;
 }

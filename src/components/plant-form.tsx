@@ -16,14 +16,14 @@ import { EMPTY } from "@/lib/hooks";
 import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
-import { categorizeCandidates, lookupPlant, matchProfile, type PlantCandidate } from "@/lib/plant-lookup";
+import { categorizeCandidates, inferCategory, lookupPlant, matchProfile, type PlantCandidate } from "@/lib/plant-lookup";
 import { identifyPlantPhoto } from "@/lib/plant-id";
 import { compressImage } from "@/lib/images";
 import { areaInfo, categoryInfo, PLANT_CATEGORIES, plantTitle, type AreaKind, type Plant, type PlantBed, type PlantCategory } from "@/lib/types";
 import { BED_KINDS, bedsOf, createBed } from "@/lib/beds";
 import { findProfile, rulesFromProfile, searchProfiles, type PlantProfile } from "@/lib/care-rules";
 import { scheduleSyncSoon } from "@/lib/sync";
-import { ensurePlantFacts } from "@/lib/plant-facts";
+import { ensurePlantFacts, resetPlantTasks } from "@/lib/plant-facts";
 
 /** Forhåndsutfylling av skjemaet for en ny plante, f.eks. fra bildeidentifisering. */
 export type PlantFormInitial = Partial<Pick<Plant, "name" | "latinName" | "variety" | "category" | "beds">> & { photo?: Blob };
@@ -244,9 +244,11 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     setName(c.name);
     setLatinName(c.latinName);
     setVariety(c.variety ?? "");
-    if (c.category) setCategory(c.category);
-    const profile = plant ? undefined : matchProfile(c);
-    setProfileKey(profile && profile.category === (c.category ?? category) ? profile.key : undefined);
+    // Forslag uten kategori (Pl@ntNet og Artsdatabanken uten KI-svar) skal ikke bli stående som standardvalget «Staude».
+    const candidateCategory = c.category ?? inferCategory(c.latinName);
+    if (candidateCategory) setCategory(candidateCategory);
+    const profile = plant ? undefined : matchProfile({ ...c, category: candidateCategory });
+    setProfileKey(profile && profile.category === (candidateCategory ?? category) ? profile.key : undefined);
     setShowSuggestions(false);
     setTypedName(null);
     resetLookup();
@@ -278,6 +280,7 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
           updatedAt: now,
         };
         await db.plants.put(updated);
+        if (plant.category !== category) await resetPlantTasks(plant.id);
         if (photoBlobs) await db.photos.add({ id: newId(), plantId: plant.id, blob: photoBlobs[0], thumb: photoBlobs[1], takenAt: now });
         onSaved?.(updated);
       } else {
@@ -487,7 +490,8 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
             {candidates.length > 0 && (
               <ul className="flex flex-col gap-1.5" aria-label="Forslag fra KI">
                 {candidates.map((c, i) => {
-                  const info = c.category ? categoryInfo(c.category) : undefined;
+                  const candidateCategory = c.category ?? inferCategory(c.latinName);
+                  const info = candidateCategory ? categoryInfo(candidateCategory) : undefined;
                   return (
                     <li key={`${c.name}|${c.latinName}|${c.variety ?? ""}|${i}`}>
                       <button type="button" onClick={() => applyCandidate(c)} className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left hover:bg-muted">

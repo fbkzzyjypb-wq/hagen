@@ -249,13 +249,67 @@ export function matchProfile(candidate: PlantCandidate): PlantProfile | undefine
   });
 }
 
+/**
+ * Kategori for vanlige hageslekter, brukt når forslaget kommer uten kategori (Pl@ntNet og Artsdatabanken kjenner ikke
+ * kategoriene, og KI-oppslaget kan feile). Uten dette blir skjemaets standardvalg «Staude» stående, også for trær.
+ * Nøkkelen er slekt, eller «slekt art» der arten skiller seg fra resten av slekta. Stauder trenger ingen oppføring.
+ */
+const GENUS_CATEGORIES: Partial<Record<PlantCategory, string[]>> = {
+  tre: [
+    "abies", "acer", "aesculus", "alnus", "betula", "carpinus", "castanea", "catalpa", "cedrus", "cercidiphyllum", "chamaecyparis", "crataegus",
+    "cupressus", "fagus", "fraxinus", "ginkgo", "juglans", "laburnum", "larix", "liquidambar", "liriodendron", "magnolia", "metasequoia", "picea",
+    "pinus", "platanus", "populus", "prunus serrulata", "prunus padus", "pseudotsuga", "quercus", "robinia", "salix", "sorbus", "tilia", "tsuga", "ulmus",
+  ],
+  frukttre: ["cydonia", "malus", "prunus", "pyrus"],
+  busk: [
+    "amelanchier", "berberis", "buddleja", "buxus", "calluna", "chaenomeles", "cornus", "corylus", "cotoneaster", "daphne", "dasiphora", "deutzia",
+    "erica", "euonymus", "forsythia", "fothergilla", "hamamelis", "hibiscus", "hydrangea", "ilex", "juniperus", "kalmia", "kerria", "kolkwitzia",
+    "mahonia", "philadelphus", "physocarpus", "pieris", "pinus mugo", "prunus laurocerasus", "rhododendron", "ribes sanguineum", "rosa", "sambucus",
+    "skimmia", "spiraea", "symphoricarpos", "syringa", "taxus", "viburnum", "weigela",
+  ],
+  baerbusk: ["aronia", "hippophae", "lonicera caerulea", "ribes", "rubus", "vaccinium"],
+  hekk: ["ligustrum", "thuja"],
+  klatreplante: ["actinidia", "aristolochia", "campsis", "clematis", "hedera", "humulus", "hydrangea anomala", "hydrangea petiolaris", "lonicera", "parthenocissus", "vitis", "wisteria"],
+  lok: [
+    "allium", "camassia", "canna", "chionodoxa", "colchicum", "crocosmia", "crocus", "dahlia", "eranthis", "erythronium", "fritillaria", "galanthus",
+    "gladiolus", "hyacinthoides", "hyacinthus", "iris reticulata", "leucojum", "lilium", "muscari", "narcissus", "ornithogalum", "puschkinia", "scilla", "tulipa",
+  ],
+  sommerblomst: [
+    "ageratum", "antirrhinum", "begonia", "calendula", "calibrachoa", "centaurea cyanus", "cosmos", "eschscholzia", "helianthus annuus", "impatiens",
+    "ipomoea", "lathyrus odoratus", "lobularia", "nemesia", "nicotiana", "nigella", "osteospermum", "papaver rhoeas", "pelargonium", "petunia",
+    "salvia splendens", "tagetes", "tropaeolum", "viola wittrockiana", "zinnia",
+  ],
+  gronnsak: [
+    "allium cepa", "allium porrum", "allium sativum", "apium", "asparagus", "beta", "brassica", "capsicum", "cucumis", "cucurbita", "daucus", "lactuca",
+    "pastinaca", "phaseolus", "pisum", "raphanus", "rheum", "solanum", "spinacia", "vicia faba", "zea",
+  ],
+  urt: [
+    "allium schoenoprasum", "allium ursinum", "anethum", "artemisia dracunculus", "coriandrum", "foeniculum", "levisticum", "melissa", "mentha", "ocimum",
+    "origanum", "petroselinum", "rosmarinus", "salvia officinalis", "salvia rosmarinus", "satureja", "thymus",
+  ],
+};
+
+const CATEGORY_BY_LATIN = new Map(
+  (Object.entries(GENUS_CATEGORIES) as [PlantCategory, string[]][]).flatMap(([category, names]) => names.map((n) => [n, category] as const))
+);
+
+/** Kategori ut fra latinsk navn: art først, så slekt. Undefined når slekta ikke står i tabellen. */
+export function inferCategory(latinName: string | undefined): PlantCategory | undefined {
+  const words = (latinName ?? "")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w && w !== "×" && w !== "x");
+  if (words.length === 0) return undefined;
+  return CATEGORY_BY_LATIN.get(words.slice(0, 2).join(" ")) ?? CATEGORY_BY_LATIN.get(words[0]);
+}
+
 const CATEGORY_SYSTEM = [
   "Du er en norsk planteekspert. For hver plante i listen, oppgi hvilken kategori den hører til i en hageapp.",
   `Kategorier (bruk nøyaktig disse verdiene): ${CATEGORY_GUIDE}.`,
   'Svar bare med et JSON-objekt der nøkkelen er det latinske navnet slik det står i listen og verdien er kategorien, f.eks. {"Thymus praecox": "urt"}.',
 ].join("\n");
 
-/** Fyller inn kategori på kandidater som mangler den (f.eks. fra bildeidentifisering). Ett kall for alle. Uendret ved feil. */
+/** Fyller inn kategori på kandidater som mangler den (f.eks. fra bildeidentifisering). Ett kall for alle. Uendret ved feil: da gjelder `inferCategory`. */
 export async function categorizeCandidates(transport: ChatTransport, candidates: PlantCandidate[], signal?: AbortSignal): Promise<PlantCandidate[]> {
   const missing = candidates.filter((c) => !c.category && c.latinName);
   if (missing.length === 0) return candidates;
@@ -264,20 +318,24 @@ export async function categorizeCandidates(transport: ChatTransport, candidates:
       transport,
       system: CATEGORY_SYSTEM,
       messages: [{ role: "user", content: missing.map((c) => `- ${c.name} (${c.latinName})`).join("\n") }],
-      maxTokens: 300,
+      // Romslig, fordi modeller som tenker før de svarer (Gemini Flash) bruker av samme kvote og ellers svarer tomt.
+      maxTokens: 1500,
       signal,
     });
     const match = raw.replace(/```(?:json)?/gi, "").match(/\{[\s\S]*\}/);
     if (!match) return candidates;
     const parsed = JSON.parse(match[0]) as Record<string, unknown>;
-    const byLatin = new Map(Object.entries(parsed).map(([k, v]) => [k.trim().toLowerCase(), clean(v).toLowerCase()]));
+    // Modellen gjentar ikke alltid navnet helt likt (autornavn, ×), så slekt og art sammenlignes.
+    const latinKey = (latin: string) => latin.toLowerCase().split(/\s+/).filter((w) => w && w !== "×" && w !== "x").slice(0, 2).join(" ");
+    const byLatin = new Map(Object.entries(parsed).map(([k, v]) => [latinKey(k), clean(v).toLowerCase()]));
     return candidates.map((c) => {
       if (c.category) return c;
-      const cat = byLatin.get(c.latinName.toLowerCase());
+      const cat = byLatin.get(latinKey(c.latinName));
       return cat && PLANT_CATEGORIES.some((x) => x.value === cat) ? { ...c, category: cat as PlantCategory } : c;
     });
   } catch (err) {
     if (signal?.aborted) throw err;
+    console.warn("Kunne ikke hente kategori fra KI-leverandøren", err);
     return candidates;
   }
 }
