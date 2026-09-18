@@ -144,7 +144,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">Vis hagekartet</p>
-                <p className="text-xs text-muted-foreground">Kartfanen der du tegner områder og plasserer planter. Skjult som standard. Bed fungerer uten kartet.</p>
+                <p className="text-xs text-muted-foreground">Kartfanen der du tegner områder og plasserer planter. Skjult som standard. Plasseringer fungerer uten kartet.</p>
               </div>
               <Switch checked={!!settings.showMap} onCheckedChange={(v) => saveSettings({ showMap: v })} />
             </div>

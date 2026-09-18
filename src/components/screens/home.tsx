@@ -114,7 +114,7 @@ export function HomeScreen() {
         <Section title="Hagen i tall">
           <div className="grid grid-cols-3 gap-2">
             <Stat label="Planter" value={plants.length} href="/planter/" />
-            {settings.showMap ? <Stat label="På kartet" value={onMap} href="/kart/" /> : <Stat label="Bed" value={bedCount} href="/planter/" />}
+            {settings.showMap ? <Stat label="På kartet" value={onMap} href="/kart/" /> : <Stat label="Plasseringer" value={bedCount} href="/planter/" />}
             <Stat label="Bilder" value={photoCount} href="/planter/" />
           </div>
         </Section>

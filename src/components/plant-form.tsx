@@ -553,13 +553,13 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
             )}
           </div>
 
-          <Field label="Bed" hint={bedRows.length > 1 ? `Totalt ${bedTotal} stk.` : "Samme plante kan stå i flere bed, med antall per bed."}>
+          <Field label="Plassering" hint={bedRows.length > 1 ? `Totalt ${bedTotal} stk.` : "Samme plante kan stå flere steder, med antall per plassering."}>
             <div className="flex flex-col gap-2">
               {bedRows.map((row, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <NativeSelect
-                      aria-label="Bed"
+                      aria-label="Plassering"
                       value={newBedFor === i ? "__new" : row.areaId}
                       onChange={(e) => {
                         const v = e.target.value;
@@ -572,17 +572,17 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
                         }
                       }}
                     >
-                      <option value="">Velg bed ...</option>
+                      <option value="">Velg plassering ...</option>
                       {bedOptions.map((b) => (
                         <option key={b.id} value={b.id}>
                           {b.name}
                         </option>
                       ))}
-                      <option value="__new">Nytt bed ...</option>
+                      <option value="__new">Ny plassering ...</option>
                     </NativeSelect>
                   </div>
                   <Input
-                    aria-label="Antall i bedet"
+                    aria-label="Antall på plasseringen"
                     inputMode="numeric"
                     value={row.quantity}
                     onChange={(e) => {
@@ -592,7 +592,7 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
                     onBlur={() => !Number(row.quantity) && setBedRows((rows) => rows.map((r, j) => (j === i ? { ...r, quantity: "1" } : r)))}
                     className="h-11 w-20 shrink-0 rounded-lg text-center"
                   />
-                  <button type="button" aria-label="Fjern fra bedet" onClick={() => removeBedRow(i)} className="shrink-0 p-2 text-muted-foreground hover:text-foreground">
+                  <button type="button" aria-label="Fjern plasseringen" onClick={() => removeBedRow(i)} className="shrink-0 p-2 text-muted-foreground hover:text-foreground">
                     <X className="size-4" />
                   </button>
                 </div>
@@ -608,13 +608,13 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
                         createNewBed();
                       }
                     }}
-                    placeholder="Navn på bedet, f.eks. Eplehekken"
+                    placeholder="Navn, f.eks. Drivhuset eller Eplehekken"
                     className="h-11 rounded-lg bg-card"
                     autoFocus
                   />
                   <div className="flex gap-2">
                     <div className="min-w-0 flex-1">
-                      <NativeSelect aria-label="Type bed" value={newBedKind} onChange={(e) => setNewBedKind(e.target.value as AreaKind)}>
+                      <NativeSelect aria-label="Type plassering" value={newBedKind} onChange={(e) => setNewBedKind(e.target.value as AreaKind)}>
                         {BED_KINDS.map((k) => (
                           <option key={k} value={k}>
                             {areaInfo(k).label}
@@ -629,7 +629,7 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
                 </div>
               )}
               <button type="button" onClick={addBedRow} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary hover:underline">
-                <Plus className="size-4" /> {bedRows.length > 0 ? "Legg til i et bed til" : "Legg i et bed"}
+                <Plus className="size-4" /> {bedRows.length > 0 ? "Legg til en plassering til" : "Legg til plassering"}
               </button>
             </div>
           </Field>

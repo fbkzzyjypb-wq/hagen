@@ -78,7 +78,7 @@ function BedPlantPickerBody({ bed, plants, beds, onOpenChange }: Omit<Props, "op
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">{candidates.length === 0 ? "Alle plantene står allerede i bedet." : "Ingen treff."}</p>
+        <p className="py-6 text-center text-sm text-muted-foreground">{candidates.length === 0 ? "Alle plantene står allerede her." : "Ingen treff."}</p>
       ) : (
         <ul className="-mx-5 min-h-0 flex-1 divide-y divide-border overflow-y-auto border-y border-border">
           {filtered.map((p) => {
@@ -91,7 +91,7 @@ function BedPlantPickerBody({ bed, plants, beds, onOpenChange }: Omit<Props, "op
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-medium">{plantTitle(p)}</p>
                     <p className="truncate text-sm text-muted-foreground">
-                      {categoryInfo(p.category).label} · {bedNames.length > 0 ? `Står i ${bedNames.join(", ")}` : "Uten bed"}
+                      {categoryInfo(p.category).label} · {bedNames.length > 0 ? `Står i ${bedNames.join(", ")}` : "Uten plassering"}
                     </p>
                   </div>
                   <span

@@ -60,7 +60,7 @@ export function buildGardenContext(ctx: Context): string {
     .filter((l): l is string => l !== null);
   if (bedLines.length > 0) {
     lines.push("");
-    lines.push("Bed og områder, med plantene som står der:");
+    lines.push("Plasseringer (bed, drivhus, krukker og andre steder), med plantene som står der:");
     lines.push(...bedLines);
   }
 
@@ -87,7 +87,7 @@ export function buildGardenPrompt(question: string, ctx: Context): string {
 export const CHAT_SYSTEM_PROMPT = [
   "Du er hageeksperten i appen Hagen, en personlig assistent for én hobbygartner i Norge.",
   "Svar på norsk (bokmål), konkret og praktisk, tilpasset norsk klima og den klimasonen som er oppgitt.",
-  "Du får listen over alle plantene brukeren har lagt inn, med sort, plantingsår og notater, og hvilke bed de står i. Når et spørsmål nevner en plante eller et bed, gå ut fra at det er det i listen, og bruk det du vet om det.",
+  "Du får listen over alle plantene brukeren har lagt inn, med sort, plantingsår og notater, og hvor de står (bed, drivhus, krukker og andre plasseringer). Når et spørsmål nevner en plante eller en plassering, gå ut fra at det er den i listen, og bruk det du vet om den.",
   "Når du foreslår oppgaver, si hvilken måned de bør gjøres i. Bruk gjerne plantene brukeren har når det er relevant.",
   "Hold svarene korte nok til å leses på en mobilskjerm: korte avsnitt og punktlister med '-'. Ikke bruk tabeller eller overskrifter.",
   "Latency-sensitive; begin your visible answer immediately.",

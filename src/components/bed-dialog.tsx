@@ -55,9 +55,9 @@ function BedDialogBody({ bed, onOpenChange, onSaved, onDeleted }: Omit<Props, "o
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{bed ? "Endre bed" : "Nytt bed"}</DialogTitle>
+        <DialogTitle>{bed ? "Endre plassering" : "Ny plassering"}</DialogTitle>
         <DialogDescription>
-          {bed ? "Plantene beholdes. Bare navnet og typen endres." : "Et bed er en gruppe planter, for eksempel «Eplehekken» eller «Bedet ved terrassen»."}
+          {bed ? "Plantene beholdes. Bare navnet og typen endres." : "En plassering er et sted plantene står, for eksempel «Drivhuset», «Eplehekken» eller «Bedet ved terrassen»."}
         </DialogDescription>
       </DialogHeader>
       <form
@@ -84,7 +84,7 @@ function BedDialogBody({ bed, onOpenChange, onSaved, onDeleted }: Omit<Props, "o
         {bed &&
           (confirmDelete ? (
             <Button variant="destructive" onClick={remove}>
-              Slett bedet
+              Slett plasseringen
             </Button>
           ) : (
             <Button variant="ghost" className="text-destructive" onClick={() => setConfirmDelete(true)}>

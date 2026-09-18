@@ -237,8 +237,8 @@ export function PlantDetailScreen({ id }: { id: string }) {
               <Row label="Kategori" value={info.label} />
               {plant.plantedYear && <Row label="Plantet" value={String(plant.plantedYear)} />}
               <Row label="Antall" value={String(plant.quantity ?? 1)} />
-              {plant.position && <Row label="Plassering" value={`${plant.position.x.toFixed(1)} m, ${plant.position.y.toFixed(1)} m`} />}
-              {plant.line && plant.line.length >= 2 && <Row label="Plassering" value={`Rekke på ${polylineLength(plant.line).toFixed(1)} m`} />}
+              {plant.position && <Row label="På kartet" value={`${plant.position.x.toFixed(1)} m, ${plant.position.y.toFixed(1)} m`} />}
+              {plant.line && plant.line.length >= 2 && <Row label="På kartet" value={`Rekke på ${polylineLength(plant.line).toFixed(1)} m`} />}
               <Row label="Lagt til" value={formatDate(plant.createdAt)} />
               {plant.notes && (
                 <div>

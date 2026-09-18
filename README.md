@@ -1,6 +1,6 @@
 # Hagen
 
-Egen hage-app for iPhone: oversikt over planter og bed, bilder gjennom årene, valgfritt hagekart og en stell-kalender med forslag til hva som kan gjøres måned for måned. Bygget som web-app (PWA) med Next.js, og installeres fra nettleseren uten App Store eller TestFlight.
+Egen hage-app for iPhone: oversikt over planter og hvor de står, bilder gjennom årene, valgfritt hagekart og en stell-kalender med forslag til hva som kan gjøres måned for måned. Bygget som web-app (PWA) med Next.js, og installeres fra nettleseren uten App Store eller TestFlight.
 
 ## Kom i gang lokalt
 
@@ -25,11 +25,11 @@ Merk: Private repoer krever GitHub Pro for Pages. Med gratis konto må repoet v�
 2. Trykk **Del** og velg **Legg til på Hjem-skjerm**.
 3. Åpne appen fra Hjem-skjermen. Da kjører den i fullskjerm og virker offline.
 
-## Bed og kart
+## Plassering og kart
 
-Plantene grupperes i **bed**: navngitte grupper som «Eplehekken» eller «Bedet ved terrassen», med type (blomsterbed, kjøkkenhage, hekk, potter ...). Bed lages i planteskjemaet eller fra plantelisten, og samme plante kan stå i flere bed med antall per bed. Plantelisten viser bedene som seksjoner, plantesiden viser hvilke bed planten står i, og KI-assistenten får bedene som kontekst.
+Plantene grupperes etter **plassering**: navngitte steder som «Drivhuset», «Eplehekken» eller «Bedet ved terrassen», med type (blomsterbed, kjøkkenhage, hekk, potter ...). Plasseringer lages i planteskjemaet eller fra plantelisten, og samme plante kan stå flere steder med antall per plassering. Plantelisten viser plasseringene som seksjoner, plantesiden viser hvor planten står, og KI-assistenten får plasseringene som kontekst. I koden heter en plassering fortsatt `bed`.
 
-Hagekartet er skjult som standard og slås på under **Innstillinger → Hagen → Vis hagekartet**. Der kan bedene få en figur på kartet og plantene plasseres. Ingenting krever kartet.
+Hagekartet er skjult som standard og slås på under **Innstillinger → Hagen → Vis hagekartet**. Der kan plasseringene få en figur på kartet og plantene settes inn. Ingenting krever kartet.
 
 ## Plantefakta og deling
 

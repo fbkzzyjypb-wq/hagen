@@ -69,7 +69,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
   if (bedId && areas !== undefined && !activeBed) {
     return (
       <Page className="pt-16">
-        <EmptyState title="Fant ikke bedet" action={<Button nativeButton={false} render={<Link href="/planter/" />}>Til plantelisten</Button>} />
+        <EmptyState title="Fant ikke plasseringen" action={<Button nativeButton={false} render={<Link href="/planter/" />}>Til plantelisten</Button>} />
       </Page>
     );
   }
@@ -89,7 +89,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
         action={
           <div className="flex items-center gap-1">
             {activeBed && (
-              <Button variant="ghost" size="icon-lg" className="rounded-full" aria-label="Endre bed" onClick={() => setBedDialog({ bed: activeBed })}>
+              <Button variant="ghost" size="icon-lg" className="rounded-full" aria-label="Endre plassering" onClick={() => setBedDialog({ bed: activeBed })}>
                 <Pencil className="size-5" />
               </Button>
             )}
@@ -127,7 +127,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
           {scoped.length === 0 ? (
             <EmptyState
               icon={<Sprout className="size-6" />}
-              title={activeBed ? "Ingen planter i bedet ennå" : "Ingen planter enda"}
+              title={activeBed ? "Ingen planter her ennå" : "Ingen planter enda"}
               description={activeBed ? "Legg til plantene som står her, eller velg blant plantene du allerede har lagt inn." : "Legg inn plantene i hagen din. Kjente planter får ferdig stell-kalender."}
               action={
                 <div className="flex flex-col gap-2">
@@ -162,7 +162,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
                       </span>
                     </Link>
                     {list.length === 0 ? (
-                      <p className="rounded-2xl border border-dashed border-border px-4 py-4 text-center text-sm text-muted-foreground">Ingen planter i dette bedet ennå.</p>
+                      <p className="rounded-2xl border border-dashed border-border px-4 py-4 text-center text-sm text-muted-foreground">Ingen planter her ennå.</p>
                     ) : (
                       <PlantCard plants={list} countFor={(p) => quantityInBed(p, bed.id)} showMap={showMap} />
                     )}
@@ -170,7 +170,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
                 );
               })}
               {groups.loose.length > 0 && (
-                <Section title="Uten bed" className="mt-0">
+                <Section title="Uten plassering" className="mt-0">
                   <PlantCard plants={groups.loose} countFor={totalQuantity} showMap={showMap} />
                 </Section>
               )}
@@ -191,10 +191,10 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
         {!activeBed && (
           <div className="mt-4">
             <Button variant="outline" className="h-11 w-full rounded-xl bg-card" onClick={() => setBedDialog({ bed: null })}>
-              <Plus data-icon="inline-start" /> Nytt bed
+              <Plus data-icon="inline-start" /> Ny plassering
             </Button>
             {beds.length === 0 && plants.length > 0 && (
-              <p className="mt-2 px-1 text-center text-xs text-muted-foreground">Lag bed for å gruppere plantene, for eksempel «Eplehekken» eller «Bedet ved terrassen».</p>
+              <p className="mt-2 px-1 text-center text-xs text-muted-foreground">Lag plasseringer for å gruppere plantene, for eksempel «Drivhuset», «Eplehekken» eller «Bedet ved terrassen».</p>
             )}
           </div>
         )}
