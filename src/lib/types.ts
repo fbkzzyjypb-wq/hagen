@@ -77,6 +77,8 @@ export type Light = "sol" | "halvskygge" | "skygge";
 export type DroughtTolerance = "lav" | "middel" | "god";
 /** Beste måte å fornye eller formere planten på. "ingen" betyr at den bør stå i fred. */
 export type PropagationMethod = "deling" | "stiklinger" | "fro" | "ingen";
+/** Giftighet etter Giftinformasjonens inndeling. "ukjent" når KI-leverandøren ikke vet. */
+export type ToxicityLevel = "ufarlig" | "lite" | "giftig" | "meget" | "ukjent";
 
 /** Dyrkingsfakta for en staude. Samme form i src/data/stauder.json og i svaret fra KI-leverandøren. */
 export interface PlantFacts {
@@ -98,6 +100,8 @@ export interface PlantFacts {
   };
   watering: string;
   droughtTolerance: DroughtTolerance;
+  /** Giftighet for mennesker og kjæledyr. Mangler på fakta som ble slått opp før feltet fantes. */
+  toxicity?: { level: ToxicityLevel; note: string };
 }
 
 /** Navn med sort, slik planten vises i lister og overskrifter: «Eple 'Elstar'». */

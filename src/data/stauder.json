@@ -1,5 +1,5 @@
 {
-  "about": "Dyrkingsfakta for vanlige hagestauder i Norge. Verdiene er veiledende: herdighet er høyeste sone planten normalt klarer seg i (H1 mildest, H8 hardest), høyde og bredde er cm fra–til, og everyYears er år mellom hver deling (0 når planten ikke bør deles). Planter slås opp på latinsk navn (art, så slekt; aliases er synonymer) og deretter på norsk navn. Feltene er beskrevet i PlantFacts i src/lib/types.ts.",
+  "about": "Dyrkingsfakta for vanlige hagestauder i Norge. Verdiene er veiledende: herdighet er høyeste sone planten normalt klarer seg i (H1 mildest, H8 hardest), høyde og bredde er cm fra–til, toxicity.level følger Giftinformasjonens inndeling (ufarlig, lite, giftig, meget) og gjelder både mennesker og kjæledyr, og everyYears er år mellom hver deling (0 når planten ikke bør deles). Planter slås opp på latinsk navn (art, så slekt; aliases er synonymer) og deretter på norsk navn. Feltene er beskrevet i PlantFacts i src/lib/types.ts.",
   "plants": [
     {
       "latin": "Hosta",
@@ -11,7 +11,8 @@
       "spread": [30, 120],
       "propagation": { "method": "deling", "everyYears": 5, "months": [4, 5, 9], "note": "Kan stå lenge urørt. Del når tua blir for stor eller tynn i midten, helst om våren når skuddene stikker opp som spisser." },
       "watering": "Jevn fuktighet. Vann godt i tørre perioder, særlig i sol.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Regnes som ufarlig for mennesker. Giftig for hunder, katter og hester (saponiner), og gir oppkast og diaré." }
     },
     {
       "latin": "Paeonia",
@@ -23,7 +24,8 @@
       "spread": [60, 100],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [9], "note": "Bør stå i fred og kan stå i flere tiår. Må den flyttes, del i september med 3–5 øyne per bit og plant øynene bare 3–5 cm dypt." },
       "watering": "Vann i tørke de første årene og når knoppene dannes. Etablerte planter klarer seg godt.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "lite", "note": "Kan gi magebesvær hos mennesker, hunder og katter hvis større mengder spises." }
     },
     {
       "latin": "Astilbe",
@@ -35,7 +37,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del når blomstringen avtar og tua blir treaktig i midten. Del om våren og plant de ytre, friske delene." },
       "watering": "Trenger jevnt fuktig jord. Vann ofte i tørre perioder.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Geranium",
@@ -47,7 +50,8 @@
       "spread": [30, 80],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5, 9], "note": "Lettstelt og kan stå lenge. Del når tua blir åpen i midten, om våren eller tidlig høst." },
       "watering": "Vann ved etablering og i langvarig tørke.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig. Må ikke forveksles med pelargonia, som er giftig for hunder og katter." }
     },
     {
       "latin": "Alchemilla",
@@ -59,7 +63,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5, 9], "note": "Del om våren eller tidlig høst. Selvsår seg villig, så klipp ned etter blomstring om du vil unngå frøplanter." },
       "watering": "Klarer seg med lite når den er etablert. Vann i langvarig tørke.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Nepeta",
@@ -71,7 +76,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Del om våren når tua blir glissen i midten. Stiklinger av nye skudd i juni slår også lett rot." },
       "watering": "Tåler tørke godt. Vann bare ved etablering.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig. Katter tiltrekkes av planten og kan få mageuro av å spise mye." }
     },
     {
       "latin": "Echinacea",
@@ -83,7 +89,8 @@
       "spread": [40, 50],
       "propagation": { "method": "fro", "everyYears": 0, "months": [4, 5], "note": "Ofte kortlivet og misliker deling. Forny med frøplanter, eller del forsiktig om våren bare hvis du må." },
       "watering": "Vann ved etablering. Tåler tørre perioder når den er etablert.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig. Kan gi reaksjoner hos dem som er allergiske mot kurvplanter." }
     },
     {
       "latin": "Rudbeckia",
@@ -95,7 +102,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Blomstrer dårligere når tua blir tett. Del om våren og plant de ytre delene." },
       "watering": "Vann i tørre perioder, ellers blir blomstringen dårlig.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "lite", "note": "Lite giftig. Hårene på blad og stengel kan irritere huden hos følsomme." }
     },
     {
       "latin": "Phlox paniculata",
@@ -107,7 +115,8 @@
       "spread": [50, 70],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Del om våren når tua blir tett og får mer meldugg. Behold de ytre, friske delene." },
       "watering": "Trenger jevn fuktighet. Vann ved roten, ikke på bladene, for å unngå meldugg.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Phlox subulata",
@@ -119,7 +128,8 @@
       "spread": [30, 50],
       "propagation": { "method": "stiklinger", "everyYears": 0, "months": [6, 7], "note": "Ta stiklinger av nye skudd etter blomstring. Eldre matter kan også deles forsiktig på sensommeren." },
       "watering": "Tåler tørke når den er etablert.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Delphinium",
@@ -131,7 +141,8 @@
       "spread": [50, 70],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4], "note": "Del om våren, eller ta stiklinger av nye skudd ved basis i april. Eldre planter blir svakere." },
       "watering": "Vann godt i vekstsesongen. Tørke gir korte og svake blomsterspir.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "giftig", "note": "Hele planten, særlig frø og unge skudd, inneholder alkaloider som påvirker hjerte og nerver. Giftig for mennesker, hunder, katter og beitedyr." }
     },
     {
       "latin": "Aconitum",
@@ -143,7 +154,8 @@
       "spread": [40, 50],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [9], "note": "Misliker å bli forstyrret og kan stå lenge. Må den deles, gjør det om høsten. Hele planten er svært giftig, bruk hansker." },
       "watering": "Trives best i jevnt fuktig jord. Vann i tørre perioder.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "meget", "note": "En av de giftigste hageplantene. Hele planten, særlig roten, inneholder akonitin som påvirker hjerte og nerver og kan være dødelig i små mengder. Giften tas opp gjennom hud og sår: bruk hansker, og plant den ikke der små barn leker." }
     },
     {
       "latin": "Aquilegia",
@@ -155,7 +167,8 @@
       "spread": [30, 40],
       "propagation": { "method": "fro", "everyYears": 0, "months": [8, 9], "note": "Har pælerot og tåler deling dårlig. Er kortlivet, men selvsår seg. La noen frøstander stå, eller så frø om høsten." },
       "watering": "Vann ved etablering og i langvarig tørke.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "giftig", "note": "Frø og rot er giftigst. Kan gi kraftig magebesvær og hjertebank ved inntak. Plantesaften kan irritere huden." }
     },
     {
       "latin": "Helleborus",
@@ -167,7 +180,8 @@
       "spread": [40, 50],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [9], "note": "Misliker flytting og deling, og bruker flere år på å komme seg etterpå. Flytt heller selvsådde småplanter." },
       "watering": "Jevn fuktighet om våren og høsten. Tåler tørrere forhold om sommeren.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "giftig", "note": "Hele planten er giftig, særlig roten. Gir svie i munnen, oppkast og diaré, og i større mengder hjertepåvirkning. Saften kan irritere huden: bruk hansker. Giftig også for hunder og katter." }
     },
     {
       "latin": "Bergenia",
@@ -179,7 +193,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 5, "months": [5, 6, 9], "note": "Del når jordstenglene blir lange og bare. Skjær av biter med rot etter blomstring og plant dem dypere." },
       "watering": "Tåler tørke godt når den er etablert.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Hemerocallis",
@@ -191,7 +206,8 @@
       "spread": [50, 80],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5, 9], "note": "Del når blomstringen avtar og tua blir tett. Kutt bladene ned til 15 cm ved deling." },
       "watering": "Vann i tørke under knoppsetting og blomstring.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "giftig", "note": "Svært giftig for katter: selv små mengder blad, blomst eller pollen kan gi akutt nyresvikt. Regnes som ufarlig for mennesker og hunder." }
     },
     {
       "latin": "Iris sibirica",
@@ -203,7 +219,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 4, "months": [8, 9], "note": "Del når tua blir hul i midten. Gjør det i august–september og hold delene fuktige til de har rotet seg." },
       "watering": "Trives i jevnt fuktig jord. Vann i tørre perioder.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "giftig", "note": "Jordstengelen er giftigst. Gir oppkast og diaré hos mennesker, hunder og katter. Saften kan irritere huden." }
     },
     {
       "latin": "Iris germanica",
@@ -216,7 +233,8 @@
       "spread": [30, 50],
       "propagation": { "method": "deling", "everyYears": 3, "months": [7, 8], "note": "Del etter blomstring i juli–august. Behold unge jordstengler med en bladvifte, kutt bladene til det halve og plant grunt." },
       "watering": "Tåler tørke godt. For mye fuktighet gir råte.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "giftig", "note": "Jordstengelen er giftigst. Gir oppkast og diaré hos mennesker, hunder og katter. Saften kan irritere huden." }
     },
     {
       "latin": "Astrantia",
@@ -228,7 +246,8 @@
       "spread": [40, 50],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua blir tett. Selvsår seg også, men sorter blir ikke like fra frø." },
       "watering": "Trenger jevn fuktighet. Vann i tørre perioder.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Heuchera",
@@ -240,7 +259,8 @@
       "spread": [30, 45],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Plantene løfter seg opp av jorda med årene. Del om våren og plant dypere, slik at den treaktige stammen dekkes." },
       "watering": "Jevn fuktighet, men tåler ikke å stå vått om vinteren.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Brunnera",
@@ -252,7 +272,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5, 9], "note": "Del om våren eller tidlig høst når tua blir stor. Sorter med sølvblad må deles, de blir ikke like fra frø." },
       "watering": "Trenger jevn fuktighet, særlig sorter med lyse blad.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Pulmonaria",
@@ -264,7 +285,8 @@
       "spread": [30, 50],
       "propagation": { "method": "deling", "everyYears": 4, "months": [5, 6, 9], "note": "Del etter blomstring eller tidlig høst. Hold delene fuktige til de har etablert seg." },
       "watering": "Vann i tørre perioder. Tørke gir meldugg på bladene.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Primula",
@@ -276,7 +298,8 @@
       "spread": [15, 30],
       "propagation": { "method": "deling", "everyYears": 3, "months": [5, 6, 9], "note": "Del rett etter blomstring eller tidlig høst. Jevnlig deling holder plantene friske og blomsterrike." },
       "watering": "Skal ikke tørke ut. Vann jevnlig i tørre perioder.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Kan gi mildt magebesvær hos hunder og katter. Enkelte arter, særlig giftprimula (P. obconica), kan gi kontaktallergi." }
     },
     {
       "latin": "Hylotelephium",
@@ -289,7 +312,8 @@
       "spread": [30, 50],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua faller fra hverandre i midten. Stiklinger av skudd i juni slår svært lett rot." },
       "watering": "Tåler tørke svært godt. Vann sjelden.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig. Bitterbergknapp (Sedum acre) kan gi magebesvær hvis mye spises." }
     },
     {
       "latin": "Salvia nemorosa",
@@ -302,7 +326,8 @@
       "spread": [40, 50],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren, eller ta stiklinger av nye skudd i mai–juni. Klipp ned etter første blomstring for ny flor." },
       "watering": "Tåler tørke godt når den er etablert.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Symphyotrichum",
@@ -315,7 +340,8 @@
       "spread": [40, 80],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Del om våren når tua blir tett og blomstrer dårligere. Plant de ytre, friske delene og kast midten." },
       "watering": "Vann i tørre perioder. Tørke gir meldugg og dårlig blomstring.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Leucanthemum",
@@ -328,7 +354,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 2, "months": [4, 5], "note": "Dør lett ut i midten etter få år. Del annethvert år om våren for å holde den frisk." },
       "watering": "Vann i tørre perioder.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "lite", "note": "Kan gi mildt magebesvær hos hunder og katter, og hudirritasjon hos følsomme." }
     },
     {
       "latin": "Campanula",
@@ -340,7 +367,8 @@
       "spread": [30, 60],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua blir tett. Lave, mattedannende arter kan også deles etter blomstring." },
       "watering": "Vann i langvarig tørke.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Lamprocapnos spectabilis",
@@ -353,7 +381,8 @@
       "spread": [50, 70],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [4], "note": "Røttene er sprø og knekker lett, så la den helst stå. Må den deles, gjør det forsiktig tidlig om våren." },
       "watering": "Jevn fuktighet om våren. Visner ned tidlig hvis den tørker ut.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "giftig", "note": "Hele planten inneholder alkaloider. Kan gi oppkast, diaré og i større mengder skjelvinger. Saften kan irritere huden. Giftig også for hunder, katter og hester." }
     },
     {
       "latin": "Anemone hupehensis",
@@ -366,7 +395,8 @@
       "spread": [50, 80],
       "propagation": { "method": "stiklinger", "everyYears": 0, "months": [4, 5], "note": "Misliker flytting og bruker tid på å etablere seg. Formeres best ved å ta rotskudd om våren, eller med rotstiklinger sent på høsten." },
       "watering": "Vann i tørre perioder, særlig de første årene.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "lite", "note": "Frisk plantesaft inneholder protoanemonin som irriterer hud og slimhinner. Kan gi svie i munnen og magebesvær ved inntak, også hos kjæledyr." }
     },
     {
       "latin": "Ligularia",
@@ -378,7 +408,8 @@
       "spread": [60, 100],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua blir stor. Bladene henger i sol og tørke, så velg en fuktig plass." },
       "watering": "Trenger mye vann. Skal ikke tørke ut.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Inneholder pyrrolizidinalkaloider som kan skade leveren ved gjentatt inntak. Ikke egnet som fôr." }
     },
     {
       "latin": "Rodgersia",
@@ -390,7 +421,8 @@
       "spread": [70, 100],
       "propagation": { "method": "deling", "everyYears": 5, "months": [4, 5], "note": "Vokser sakte og kan stå lenge. Del jordstengelen om våren ved behov." },
       "watering": "Trenger jevn fuktighet. Vann godt i tørre perioder.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Ingen kjent giftvirkning." }
     },
     {
       "latin": "Trollius",
@@ -402,7 +434,8 @@
       "spread": [40, 50],
       "propagation": { "method": "deling", "everyYears": 4, "months": [8, 9], "note": "Del etter blomstring eller tidlig høst når tua blir tett. Hold delene fuktige." },
       "watering": "Skal ikke tørke ut.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Frisk plantesaft inneholder protoanemonin som irriterer hud og slimhinner. Smaker skarpt og spises sjelden." }
     },
     {
       "latin": "Veronica",
@@ -414,7 +447,8 @@
       "spread": [30, 45],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Del om våren når tua blir glissen i midten." },
       "watering": "Vann i langvarig tørke.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Achillea",
@@ -426,7 +460,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Blir fort glissen i midten. Del om våren og plant de ytre delene." },
       "watering": "Tåler tørke godt. Vann sjelden.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "lite", "note": "Kan gi oppkast og diaré hos hunder, katter og hester. Kan gi kontaktallergi og gjøre huden følsom for sol hos enkelte." }
     },
     {
       "latin": "Stachys byzantina",
@@ -438,7 +473,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Del om våren når matta blir bar i midten." },
       "watering": "Tåler tørke svært godt. Unngå vann på bladene.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Papaver orientale",
@@ -450,7 +486,8 @@
       "spread": [50, 60],
       "propagation": { "method": "stiklinger", "everyYears": 0, "months": [8, 9], "note": "Har pælerot og tåler flytting dårlig. Formeres med rotstiklinger i august–september, når planten hviler etter blomstring." },
       "watering": "Tåler tørke godt. Visner ned etter blomstring, det er normalt.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "giftig", "note": "Hele planten, særlig melkesaften og umodne frøkapsler, inneholder alkaloider. Kan gi døsighet og magebesvær. Giftig også for hunder, katter og hester." }
     },
     {
       "latin": "Lythrum",
@@ -462,7 +499,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua blir treaktig og blomstrer dårligere. Rotklumpen er hard, bruk spade eller sag." },
       "watering": "Trives best med jevn fuktighet. Vann i tørre perioder.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Monarda",
@@ -474,7 +512,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Dør ut i midten og vandrer utover. Del om våren og plant de ytre skuddene." },
       "watering": "Vann i tørre perioder. Tørke gir meldugg.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Helenium",
@@ -486,7 +525,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5], "note": "Del om våren når blomstringen avtar. Behold de ytre, friske rosettene." },
       "watering": "Skal ikke tørke ut i vekstsesongen.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "giftig", "note": "Hele planten inneholder helenalin. Gir magebesvær ved inntak og kan gi hudallergi ved berøring. Giftig for beitedyr." }
     },
     {
       "latin": "Calamagrostis",
@@ -499,7 +539,8 @@
       "spread": [50, 70],
       "propagation": { "method": "deling", "everyYears": 5, "months": [4, 5], "note": "Prydgress deles bare om våren når veksten starter. Del når tua blir hul i midten." },
       "watering": "Vann ved etablering og i langvarig tørke.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Miscanthus",
@@ -511,7 +552,8 @@
       "spread": [80, 120],
       "propagation": { "method": "deling", "everyYears": 5, "months": [5], "note": "Del bare om våren når veksten er i gang, aldri om høsten. Bruk sag eller øks på store tuer." },
       "watering": "Vann i tørre perioder de første årene.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Ingen kjent giftvirkning. Bladkantene er skarpe og kan gi kutt." }
     },
     {
       "latin": "Hakonechloa",
@@ -523,7 +565,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 5, "months": [5], "note": "Vokser sakte. Del om våren når veksten starter, og hold delene fuktige." },
       "watering": "Jevn fuktighet. Skal ikke tørke ut.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Matteuccia",
@@ -535,7 +578,8 @@
       "spread": [60, 100],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [4, 5], "note": "Bør stå i fred. Sprer seg med utløpere, og nye rosetter kan graves opp og flyttes om våren." },
       "watering": "Trenger fuktig jord. Bladene svis i tørke.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Rå eller for lite kokte skudd kan gi kvalme, oppkast og diaré. Skuddene må kokes godt før de spises." }
     },
     {
       "latin": "Dryopteris",
@@ -547,7 +591,8 @@
       "spread": [60, 90],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [4, 5], "note": "Bregner misliker forstyrrelse. Store planter med flere kroner kan deles forsiktig om våren ved behov." },
       "watering": "Jevn fuktighet. Tåler noe tørke i skygge når den er etablert.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "giftig", "note": "Jordstengelen inneholder filicin og er giftig. Den ble tidligere brukt som ormemiddel og har gitt alvorlige forgiftninger. Bladene smaker vondt og spises sjelden." }
     },
     {
       "latin": "Kniphofia",
@@ -559,7 +604,8 @@
       "spread": [50, 60],
       "propagation": { "method": "deling", "everyYears": 5, "months": [4, 5], "note": "Del om våren ved behov. Dekk gjerne kronen med løv om vinteren." },
       "watering": "Vann i tørke under blomstring, ellers lite.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Eutrochium",
@@ -572,7 +618,8 @@
       "spread": [80, 100],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua blir for stor. Rotklumpen er hard, bruk spade eller sag." },
       "watering": "Trenger jevn fuktighet.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Inneholder pyrrolizidinalkaloider som kan skade leveren ved gjentatt inntak. Bør ikke brukes som urtete eller fôr." }
     },
     {
       "latin": "Geum",
@@ -584,7 +631,8 @@
       "spread": [30, 40],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5, 9], "note": "Del hvert tredje år for å holde blomstringen oppe, om våren eller tidlig høst." },
       "watering": "Vann i tørre perioder.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Dianthus",
@@ -596,7 +644,8 @@
       "spread": [20, 40],
       "propagation": { "method": "stiklinger", "everyYears": 0, "months": [6, 7], "note": "Blir treaktig og kortlivet. Forny med stiklinger av blomsterløse skudd i juni–juli heller enn å dele." },
       "watering": "Tåler tørke godt. Tåler ikke våt jord.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "lite", "note": "Kan gi mildt magebesvær hos hunder, katter og hester, og lett hudirritasjon." }
     },
     {
       "latin": "Epimedium",
@@ -608,7 +657,8 @@
       "spread": [30, 60],
       "propagation": { "method": "deling", "everyYears": 5, "months": [8, 9], "note": "Kan stå lenge. Del på sensommeren eller rett etter blomstring ved behov." },
       "watering": "Tåler tørr skygge godt når den er etablert.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Lysimachia",
@@ -620,7 +670,8 @@
       "spread": [60, 100],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5, 9], "note": "Sprer seg kraftig. Del og reduser om våren eller høsten for å holde den på plass." },
       "watering": "Trives best med jevn fuktighet.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Centaurea",
@@ -632,7 +683,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 3, "months": [4, 5, 9], "note": "Del om våren eller høsten når tua blir åpen i midten. Klipp ned etter blomstring for ny flor." },
       "watering": "Tåler tørre perioder når den er etablert.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Echinops",
@@ -644,7 +696,8 @@
       "spread": [60, 80],
       "propagation": { "method": "stiklinger", "everyYears": 0, "months": [10, 11], "note": "Har dype røtter og tåler deling dårlig. Formeres med rotstiklinger sent på høsten, eller med frø." },
       "watering": "Tåler tørke svært godt.",
-      "droughtTolerance": "god"
+      "droughtTolerance": "god",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig. Bladene er piggete." }
     },
     {
       "latin": "Bistorta amplexicaulis",
@@ -657,7 +710,8 @@
       "spread": [80, 120],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5], "note": "Del om våren når tua blir for stor." },
       "watering": "Vann i tørre perioder.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Thalictrum",
@@ -669,7 +723,8 @@
       "spread": [40, 60],
       "propagation": { "method": "deling", "everyYears": 5, "months": [4, 5], "note": "Bruker tid på å etablere seg. Del forsiktig om våren bare ved behov." },
       "watering": "Jevn fuktighet.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "lite", "note": "Lite giftig. Kan gi magebesvær ved inntak." }
     },
     {
       "latin": "Actaea",
@@ -682,7 +737,8 @@
       "spread": [60, 80],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [4], "note": "Vokser sakte og misliker forstyrrelse. La den stå i fred." },
       "watering": "Skal ikke tørke ut.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "giftig", "note": "Bærene hos trollbær (A. spicata og A. rubra) er giftige og kan gi kraftig magebesvær og hjertepåvirkning. Sølvlys (tidligere Cimicifuga) er mindre giftig, men hele planten bør regnes som giftig." }
     },
     {
       "latin": "Aruncus",
@@ -694,7 +750,8 @@
       "spread": [100, 120],
       "propagation": { "method": "ingen", "everyYears": 0, "months": [4], "note": "Får en hard, treaktig rotstokk som er tung å dele. Kan stå i fred i mange år." },
       "watering": "Jevn fuktighet. Tåler noe tørke når den er etablert.",
-      "droughtTolerance": "middel"
+      "droughtTolerance": "middel",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig for mennesker og kjæledyr." }
     },
     {
       "latin": "Filipendula",
@@ -706,7 +763,8 @@
       "spread": [60, 80],
       "propagation": { "method": "deling", "everyYears": 4, "months": [4, 5, 9], "note": "Del om våren eller høsten når tua blir tett." },
       "watering": "Trenger fuktig jord.",
-      "droughtTolerance": "lav"
+      "droughtTolerance": "lav",
+      "toxicity": { "level": "ufarlig", "note": "Regnes som ufarlig. Inneholder salisylater, og bør ikke brukes som urtete av dem som ikke tåler acetylsalisylsyre." }
     }
   ]
 }

@@ -22,7 +22,7 @@ import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
 import { quantityInBed } from "@/lib/beds";
 import { nextDueYear, rulesForPlant } from "@/lib/tasks";
-import { categoryInfo, MONTHS_NB_SHORT, plantTitle, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod } from "@/lib/types";
+import { categoryInfo, MONTHS_NB_SHORT, plantTitle, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod, type ToxicityLevel } from "@/lib/types";
 import { currentYear, formatDate } from "@/lib/dates";
 import { scheduleSyncSoon } from "@/lib/sync";
 import { isPlaced, polylineLength } from "@/lib/geometry";
@@ -329,6 +329,7 @@ function ReferenceImage({ plantId, alt }: { plantId: string; alt: string }) {
 
 const DROUGHT_LABELS: Record<DroughtTolerance, string> = { lav: "Tåler tørke dårlig", middel: "Tåler noe tørke", god: "Tåler tørke godt" };
 const METHOD_LABELS: Record<PropagationMethod, string> = { deling: "Deling", stiklinger: "Stiklinger", fro: "Frø", ingen: "Bør stå i fred" };
+const TOXICITY_LABELS: Record<ToxicityLevel, string> = { ufarlig: "Ufarlig", lite: "Lite giftig", giftig: "Giftig", meget: "Meget giftig", ukjent: "Ukjent" };
 
 /** Dyrkingsfakta fra staudelisten eller KI-leverandøren. Vises ikke når planten ikke er slått opp. */
 function FactsCard({ plant }: { plant: Plant }) {
@@ -337,6 +338,7 @@ function FactsCard({ plant }: { plant: Plant }) {
   const { facts, source } = found;
   const size = (r: [number, number]) => (r[0] === r[1] ? `${r[0]}` : `${r[0]}–${r[1]}`);
   const { method, everyYears, months = [], note } = facts.propagation;
+  const toxic = facts.toxicity?.level === "giftig" || facts.toxicity?.level === "meget";
   const propagation = [
     method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : METHOD_LABELS[method],
     months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", "),
@@ -353,16 +355,30 @@ function FactsCard({ plant }: { plant: Plant }) {
       {facts.soil && <Block label="Jord" value={facts.soil} />}
       {facts.watering && <Block label="Vanning" value={facts.watering} />}
       <Block label="Formering" value={propagation} note={note} />
-      <p className="text-xs text-muted-foreground">{source === "liste" ? "Fra appens staudeliste. Verdiene er veiledende." : "Fra KI-leverandøren. Kan inneholde feil."}</p>
+      {facts.toxicity && (
+        <Block label="Giftighet" value={TOXICITY_LABELS[facts.toxicity.level]} note={facts.toxicity.note} valueClassName={toxic ? "font-medium text-destructive" : undefined} />
+      )}
+      <p className="text-xs text-muted-foreground">
+        {source === "liste" ? "Fra appens staudeliste. Verdiene er veiledende." : "Fra KI-leverandøren. Kan inneholde feil."}
+        {facts.toxicity && facts.toxicity.level !== "ufarlig" && (
+          <>
+            {" "}Har noen fått i seg planten, ring Giftinformasjonen på{" "}
+            <a href="tel:22591300" className="font-medium text-primary underline-offset-2 hover:underline">
+              22 59 13 00
+            </a>
+            .
+          </>
+        )}
+      </p>
     </Card>
   );
 }
 
-function Block({ label, value, note }: { label: string; value: string; note?: string }) {
+function Block({ label, value, note, valueClassName }: { label: string; value: string; note?: string; valueClassName?: string }) {
   return (
     <div>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-sm">{value}</p>
+      <p className={cn("mt-0.5 text-sm", valueClassName)}>{value}</p>
       {note && <p className="mt-0.5 text-sm text-muted-foreground">{note}</p>}
     </div>
   );

@@ -35,7 +35,7 @@ Hagekartet er skjult som standard og slås på under **Innstillinger → Hagen �
 
 ## Staudefakta og deling
 
-[src/data/stauder.json](src/data/stauder.json) er en liste over vanlige hagestauder med herdighet, lysforhold, jord, størrelse, vanning, tørketoleranse og formering: om rotdeling er anbefalt, hvor ofte og når, eller om stiklinger eller frø er bedre. Verdiene er veiledende. Planter slås opp på latinsk navn (art, så slekt) og deretter norsk navn, og faktaene vises under **Info** på plantesiden. Nye stauder legges til ved å kopiere en oppføring i filen. Feltene er beskrevet i `PlantFacts` i `src/lib/types.ts`.
+[src/data/stauder.json](src/data/stauder.json) er en liste over vanlige hagestauder med herdighet, lysforhold, jord, størrelse, vanning, tørketoleranse, giftighet og formering: om rotdeling er anbefalt, hvor ofte og når, eller om stiklinger eller frø er bedre. Giftigheten følger Giftinformasjonens inndeling (ufarlig, lite giftig, giftig, meget giftig) og gjelder både mennesker og kjæledyr. Verdiene er veiledende. Planter slås opp på latinsk navn (art, så slekt) og deretter norsk navn, og faktaene vises under **Info** på plantesiden. Nye stauder legges til ved å kopiere en oppføring i filen. Feltene er beskrevet i `PlantFacts` i `src/lib/types.ts`.
 
 Stauder som ikke står i listen slås opp hos KI-leverandøren når de legges til (og ved oppstart for stauder som ikke er sjekket ennå). Svaret har samme felter og lagres på planten.
 

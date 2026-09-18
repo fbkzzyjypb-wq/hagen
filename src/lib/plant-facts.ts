@@ -4,10 +4,10 @@ import { newId } from "./id";
 import { CATEGORY_RULES } from "./care-rules";
 import { completeText, resolveTransport, type ChatTransport } from "./llm-client";
 import { scheduleSyncSoon } from "./sync";
-import { plantTitle, type CareRule, type DroughtTolerance, type Light, type Plant, type PlantFacts, type PropagationMethod, type Settings } from "./types";
+import { plantTitle, type CareRule, type DroughtTolerance, type Light, type Plant, type PlantFacts, type PropagationMethod, type Settings, type ToxicityLevel } from "./types";
 
 /**
- * Dyrkingsfakta for stauder: herdighet, lys, jord, størrelse, deling eller stiklinger, vanning og tørketoleranse.
+ * Dyrkingsfakta for stauder: herdighet, lys, jord, størrelse, deling eller stiklinger, vanning, tørketoleranse og giftighet.
  * Vanlige stauder står i src/data/stauder.json. Stauder som ikke står der slås opp hos KI-leverandøren (hvis satt opp),
  * og svaret lagres på planten. Faktaene gir også planten en egen deleregel som overstyrer fellesregelen
  * «Del og flytt stauder»: asters deles oftere enn hosta, og pion bør stå i fred.
@@ -20,6 +20,7 @@ const DIVISION_KEY = "del-stauder";
 const LIGHTS: Light[] = ["sol", "halvskygge", "skygge"];
 const DROUGHT: DroughtTolerance[] = ["lav", "middel", "god"];
 const METHODS: PropagationMethod[] = ["deling", "stiklinger", "fro", "ingen"];
+const TOXICITY: ToxicityLevel[] = ["ufarlig", "lite", "giftig", "meget", "ukjent"];
 
 /** «Nepeta × faassenii 'Walker's Low'» → «nepeta faassenii». */
 function latinWords(latin: string): string[] {
@@ -50,7 +51,7 @@ export function factsFor(plant: Plant): { facts: PlantFacts; source: "liste" | "
 const SYSTEM = [
   "Du er en norsk staudeekspert. Brukeren oppgir én staude i hagen sin. Gi dyrkingsfakta for norske forhold.",
   "Svar bare med et JSON-objekt, uten annen tekst, på denne formen:",
-  '{"hardiness": "H6", "light": ["sol", "halvskygge"], "soil": "...", "height": [40, 60], "spread": [30, 50], "propagation": {"method": "deling", "everyYears": 3, "months": [4, 5], "note": "..."}, "watering": "...", "droughtTolerance": "middel"}',
+  '{"hardiness": "H6", "light": ["sol", "halvskygge"], "soil": "...", "height": [40, 60], "spread": [30, 50], "propagation": {"method": "deling", "everyYears": 3, "months": [4, 5], "note": "..."}, "watering": "...", "droughtTolerance": "middel", "toxicity": {"level": "giftig", "note": "..."}}',
   "hardiness: høyeste norske herdighetssone planten normalt klarer seg i, fra H1 (mildest) til H8.",
   "light: én eller flere av sol, halvskygge, skygge. soil: kort om jorda den trives i. height og spread: fra–til i cm for en utvokst plante.",
   "propagation.method: deling, stiklinger, fro eller ingen. Bruk deling når rotdeling er anbefalt, stiklinger eller fro når det fungerer bedre, og ingen når planten bør stå i fred (f.eks. pion, julerose, stormhatt, bregner og stauder med pælerot).",
@@ -58,6 +59,8 @@ const SYSTEM = [
   "propagation.months: én til tre måneder (tall 1–12) der det bør gjøres i Norge. Vårblomstrende deles på sensommeren, sommer- og høstblomstrende om våren når skuddene er et par cm.",
   "propagation.note: én eller to korte setninger på norsk: tegn på at planten trenger deling og hvordan, hvordan stiklinger tas, eller hvorfor den bør stå i fred.",
   "watering: kort om vanningsbehov. droughtTolerance: lav, middel eller god.",
+  "toxicity.level: ufarlig, lite, giftig, meget eller ukjent, etter Giftinformasjonens inndeling (ufarlig, lite giftig, giftig, meget giftig). Gjelder både mennesker og kjæledyr: bruk det høyeste nivået. Bruk ukjent når du er usikker, aldri ufarlig på gjetning.",
+  "toxicity.note: én eller to korte setninger på norsk om hvilke plantedeler som er giftige, symptomer, og om planten er farlig for barn, hunder eller katter.",
 ].join("\n");
 
 function text(value: unknown): string {
@@ -86,6 +89,7 @@ export function parseFacts(raw: string): PlantFacts | null {
   const prop = (o.propagation && typeof o.propagation === "object" ? o.propagation : {}) as Record<string, unknown>;
   const method = METHODS.find((m) => m === text(prop.method).toLowerCase());
   const drought = DROUGHT.find((d) => d === text(o.droughtTolerance).toLowerCase());
+  const tox = (o.toxicity && typeof o.toxicity === "object" ? o.toxicity : {}) as Record<string, unknown>;
   if (!/^H[1-8]$/.test(hardiness) || light.length === 0 || !height || !method || !drought) return null;
   const everyYears = Math.round(Number(prop.everyYears));
   const months = Array.isArray(prop.months)
@@ -105,6 +109,8 @@ export function parseFacts(raw: string): PlantFacts | null {
     },
     watering: text(o.watering),
     droughtTolerance: drought,
+    // Mangler nivået, er giftigheten ukjent. Aldri «ufarlig» som standard.
+    toxicity: { level: TOXICITY.find((t) => t === text(tox.level).toLowerCase()) ?? "ukjent", note: text(tox.note) },
   };
 }
 
@@ -154,7 +160,10 @@ export async function ensurePlantFacts(): Promise<void> {
       again = false;
       const settings = await db.settings.get("settings");
       let transport = settings && navigator.onLine ? resolveTransport(settings) : null;
-      const unchecked = (await db.plants.toArray()).filter((p) => p.category === "staude" && !p.factsChecked);
+      // Fakta fra KI-leverandøren som ble hentet før giftighet fantes, slås opp på nytt.
+      const unchecked = (await db.plants.toArray()).filter(
+        (p) => p.category === "staude" && (!p.factsChecked || (p.facts && !p.facts.toxicity && !findListedFacts(p)))
+      );
       for (const plant of unchecked) {
         const listed = findListedFacts(plant);
         let asked: PlantFacts | null = null;
