@@ -23,9 +23,10 @@ import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
 import { compressImage } from "@/lib/images";
 import { formatDate, formatRelative } from "@/lib/dates";
-import { enrichCandidates, inferCategory, type PlantCandidate } from "@/lib/plant-lookup";
+import { enrichCandidates, inferCategory, type CandidateImage, type PlantCandidate } from "@/lib/plant-lookup";
 import { hardyIn, withListedFacts } from "@/lib/plant-facts";
 import { diagnosePlant, identifyPlantPhotos, identifyPlantWithVision, MAX_IDENTIFY_PHOTOS, PLANT_ORGANS, type PlantOrgan } from "@/lib/plant-id";
+import { TAB_RESELECT_EVENT } from "@/components/tab-bar";
 import { categoryInfo, LIFECYCLE_LABELS, plantTitle, TOXICITY_LABELS, type CandidateFacts, type Identification, type Plant, type ToxicityLevel } from "@/lib/types";
 
 type Mode = "plante" | "sykdom";
@@ -57,8 +58,6 @@ export function IdentifyScreen() {
   const [idResult, setIdResult] = useState<IdResult | null>(null);
   /** Oppføringen i historikken som det siste svaret er lagret som, hvis brukeren har lagret det. */
   const [recordId, setRecordId] = useState<string | null>(null);
-  /** Forslaget som holder på å legges inn i hagen. Når planten er lagret, lagres identifiseringen med det forslaget valgt. */
-  const [pendingAdd, setPendingAdd] = useState<PlantCandidate | null>(null);
   /** En tidligere identifisering som er åpnet fra historikken. */
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
@@ -88,30 +87,48 @@ export function IdentifyScreen() {
   }
 
   /**
-   * Lagrer identifiseringen i historikken med det valgte forslaget først, og det første bildet nedskalert.
-   * Er den lagret fra før (eller åpnet fra historikken), byttes bare valget. Returnerer oppføringens id.
+   * Lagrer identifiseringen i historikken som det valgte forslaget, med det første bildet nedskalert. Bare det valgte
+   * forslaget tas vare på. Er svaret lagret fra før, byttes forslaget i samme oppføring.
    */
-  async function saveChoice(chosen: PlantCandidate): Promise<string | null> {
-    const putFirst = (list: PlantCandidate[]) => [chosen, ...list.filter((c) => candidateKey(c) !== candidateKey(chosen))];
-    if (viewing) {
-      await db.identifications.update(viewing.id, { candidates: putFirst(viewing.candidates) });
-      return viewing.id;
-    }
-    if (!idResult || photos.length === 0) return null;
+  async function saveChoice(chosen: PlantCandidate) {
+    if (!idResult || photos.length === 0) return;
     if (recordId) {
-      await db.identifications.update(recordId, { candidates: putFirst(idResult.candidates) });
-      return recordId;
+      await db.identifications.update(recordId, { candidates: [chosen] });
+      return;
     }
-    const record = await newRecord(photos[0].blob, photos.length, idResult.source, putFirst(idResult.candidates));
+    const record = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
     await db.identifications.add(record);
     setRecordId(record.id);
-    return record.id;
   }
 
   function startAdd(c: PlantCandidate, photoBlob: Blob | null) {
-    setPendingAdd(c);
     setFormInitial({ name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: photoBlob ?? undefined });
   }
+
+  /** Tilbake til start: ingen bilder, ingen svar, ingen åpnet oppføring. */
+  function reset() {
+    cancel();
+    setMode("plante");
+    setPhotos([]);
+    setIdResult(null);
+    setRecordId(null);
+    setViewingId(null);
+    setDiagnosis(null);
+    setError(null);
+    setSaved(false);
+  }
+
+  // Et trykk på Identifiser i menyen mens skjermen alt er åpen, starter på nytt.
+  useEffect(() => {
+    const onReselect = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== "/identifiser/") return;
+      reset();
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener(TAB_RESELECT_EVENT, onReselect);
+    return () => window.removeEventListener(TAB_RESELECT_EVENT, onReselect);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Startes bare fra knappen, så brukeren bestemmer selv når Pl@ntNet og KI-leverandøren spørres. */
   async function analyse() {
@@ -402,14 +419,10 @@ export function IdentifyScreen() {
         }}
         initial={formInitial ?? undefined}
         onSaved={(p) => {
-          const chosen = pendingAdd;
-          setPendingAdd(null);
-          (async () => {
-            const id = chosen ? await saveChoice(chosen) : (viewingId ?? recordId);
-            if (id) await db.identifications.update(id, { plantId: p.id });
-          })()
-            .catch(() => undefined)
-            .finally(() => router.push(`/plante/?id=${p.id}`));
+          // Er identifiseringen lagret i historikken, får oppføringen en lenke til planten.
+          const id = viewingId ?? recordId;
+          if (id) db.identifications.update(id, { plantId: p.id }).catch(() => undefined);
+          router.push(`/plante/?id=${p.id}`);
         }}
       />
     </>
@@ -437,7 +450,6 @@ function HistoryList({ items, plants, onOpen }: { items: Identification[]; plant
                     <span className="block truncate text-xs text-muted-foreground">
                       {top?.latinName && <span className="italic">{top.latinName} · </span>}
                       {formatRelative(h.createdAt)}
-                      {h.candidates.length > 1 ? ` · ${h.candidates.length} forslag` : ""}
                     </span>
                     {added && (
                       <span className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary">
@@ -479,7 +491,7 @@ function RecordView({
   onDelete: () => void;
 }) {
   const added = record.plantId ? plants.find((p) => p.id === record.plantId) : undefined;
-  const [chosen, ...others] = record.candidates;
+  const chosen = record.candidates[0];
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2 px-1">
@@ -505,15 +517,7 @@ function RecordView({
           <CandidateCard candidate={chosen} plants={plants} zone={zone} assistantLabel={assistantLabel} onAdd={() => onAdd(chosen)} />
         </>
       )}
-      {others.length > 0 && (
-        <>
-          <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Andre forslag</p>
-          {others.map((c, i) => (
-            <CandidateCard key={`${candidateKey(c)}|${i}`} candidate={c} plants={plants} zone={zone} assistantLabel={assistantLabel} onAdd={() => onAdd(c)} />
-          ))}
-        </>
-      )}
-      {!hasTransport && record.candidates.some((c) => !c.facts) && <FactsHint />}
+      {!hasTransport && chosen && !chosen.facts && <FactsHint />}
       <div className="flex gap-2">
         <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" onClick={onNew}>
           <Camera data-icon="inline-start" /> Ny identifisering
@@ -578,25 +582,7 @@ function CandidateCard({
           {c.variety ? ` '${c.variety}'` : ""}
         </p>
       )}
-      {images.length > 0 && (
-        <div>
-          <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
-            {images.map((img, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={`${img.url}|${i}`}
-                src={img.url}
-                alt={`${c.name}${img.organ ? `, ${organLabel(img.organ)}` : ""}`}
-                title={img.author ? `${img.author}${img.license ? ` (${img.license.toUpperCase()})` : ""}` : undefined}
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                className="size-20 shrink-0 rounded-lg bg-muted object-cover"
-              />
-            ))}
-          </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">Referansebilder fra Pl@ntNet.</p>
-        </div>
-      )}
+      {images.length > 0 && <ImageStrip images={images} name={c.name} />}
       <FactChips facts={c.facts} zone={zone} />
       {c.note && <p className="text-sm text-muted-foreground">{c.note}</p>}
       {existing && (
@@ -627,6 +613,56 @@ function CandidateCard({
         </Button>
       </div>
     </Card>
+  );
+}
+
+/**
+ * Referansebildene fra Pl@ntNet i en bla-rad. Et trykk gjør dem over dobbelt så store, animert, så detaljene synes.
+ * Når brukeren har skrollet videre, så over halve raden er forbi toppen av skjermen, krymper den tilbake av seg selv.
+ */
+function ImageStrip({ images, name }: { images: CandidateImage[]; name: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!expanded || !el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        // Bare når raden forsvinner oppover. Nederst på skjermen kan den godt være delvis skjult mens man ser på den.
+        if (entry.intersectionRatio < 0.5 && entry.boundingClientRect.top < 0) setExpanded(false);
+      },
+      { threshold: [0, 0.5] }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [expanded]);
+
+  return (
+    <div ref={ref}>
+      <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
+        {images.map((img, i) => (
+          <button
+            key={`${img.url}|${i}`}
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Vis bildene mindre" : "Vis bildene større"}
+            className={cn("shrink-0 overflow-hidden rounded-lg bg-muted transition-[width,height] duration-300 ease-out", expanded ? "h-44 w-44" : "size-20")}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={img.url}
+              alt={`${name}${img.organ ? `, ${organLabel(img.organ)}` : ""}`}
+              title={img.author ? `${img.author}${img.license ? ` (${img.license.toUpperCase()})` : ""}` : undefined}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="size-full object-cover"
+            />
+          </button>
+        ))}
+      </div>
+      <p className="mt-1 text-[11px] text-muted-foreground">Referansebilder fra Pl@ntNet. Trykk for å se dem større.</p>
+    </div>
   );
 }
 

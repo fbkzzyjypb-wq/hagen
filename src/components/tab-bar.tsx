@@ -6,6 +6,9 @@ import { Home, Sprout, Map, Camera, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import { useSettings } from "@/lib/settings";
 
+/** Sendes på `window` når brukeren trykker på fanen som alt er valgt, med `detail` lik fanens sti. Skjermen kan da starte på nytt. */
+export const TAB_RESELECT_EVENT = "hagen:tab-reselect";
+
 const tabs = [
   { href: "/", label: "Hjem", icon: Home },
   { href: "/planter/", label: "Planter", icon: Sprout },
@@ -38,6 +41,9 @@ export function TabBar() {
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
+                onClick={() => {
+                  if (active) window.dispatchEvent(new CustomEvent(TAB_RESELECT_EVENT, { detail: href }));
+                }}
                 className={cn(
                   "flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground"
