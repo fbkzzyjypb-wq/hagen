@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ChevronRight, ListPlus, Pencil, Plus, Search, Sprout } from "lucide-react";
+import { ArrowLeft, ChevronRight, ListPlus, Pencil, Plus, Search, Skull, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { PlantForm, type PlantFormInitial } from "@/components/plant-form";
 import { PlantListItem } from "@/components/plant-list-item";
 import { BedDialog } from "@/components/bed-dialog";
 import { BedPlantPicker } from "@/components/bed-plant-picker";
+import { ToxicitySheet } from "@/components/toxicity-sheet";
 import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
 import { bedsOf, inBed, quantityInBed, totalQuantity } from "@/lib/beds";
@@ -34,6 +35,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
   const [addInitial, setAddInitial] = useState<PlantFormInitial | null>(null);
   const [bedDialog, setBedDialog] = useState<{ bed: Area | null } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [toxicityOpen, setToxicityOpen] = useState(false);
 
   const scoped = useMemo(() => (activeBed ? plants.filter((p) => inBed(p, activeBed.id)) : plants), [plants, activeBed]);
   /** Det finnes planter utenfor bedet som kan legges i det. */
@@ -88,9 +90,13 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
         }
         action={
           <div className="flex items-center gap-1">
-            {activeBed && (
+            {activeBed ? (
               <Button variant="ghost" size="icon-lg" className="rounded-full" aria-label="Endre plassering" onClick={() => setBedDialog({ bed: activeBed })}>
                 <Pencil className="size-5" />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon-lg" className="rounded-full" aria-label="Giftighet" onClick={() => setToxicityOpen(true)}>
+                <Skull className="size-5" />
               </Button>
             )}
             <Button
@@ -218,6 +224,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
         }}
       />
       {activeBed && <BedPlantPicker open={pickerOpen} onOpenChange={setPickerOpen} bed={activeBed} plants={plants} beds={beds} />}
+      <ToxicitySheet open={toxicityOpen} onOpenChange={setToxicityOpen} plants={plants} />
     </>
   );
 }
