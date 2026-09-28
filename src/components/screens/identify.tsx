@@ -33,6 +33,11 @@ type IdResult = { candidates: PlantCandidate[]; remaining?: number; source: "pla
 /** Et valgt bilde og hva det viser. Organet brukes bare av Pl@ntNet. */
 type PickedPhoto = { id: string; blob: Blob; organ: PlantOrgan };
 
+/** En ny oppføring i historikken, med det første bildet nedskalert. */
+async function newRecord(photo: Blob, photoCount: number, source: Identification["source"], candidates: PlantCandidate[]): Promise<Identification> {
+  return { id: newId(), createdAt: Date.now(), photo: await compressImage(photo, 800, 0.8), photoCount, source, candidates };
+}
+
 function plainText(markdown: string, max: number): string {
   const text = markdown.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -50,8 +55,10 @@ export function IdentifyScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [idResult, setIdResult] = useState<IdResult | null>(null);
-  /** Identifiseringen i historikken som det siste svaret ble lagret som. Planten som legges til, knyttes til den. */
+  /** Oppføringen i historikken som det siste svaret er lagret som, hvis brukeren har lagret det. */
   const [recordId, setRecordId] = useState<string | null>(null);
+  /** Forslaget som holder på å legges inn i hagen. Når planten er lagret, lagres identifiseringen med det forslaget valgt. */
+  const [pendingAdd, setPendingAdd] = useState<PlantCandidate | null>(null);
   /** En tidligere identifisering som er åpnet fra historikken. */
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
@@ -65,6 +72,9 @@ export function IdentifyScreen() {
   const canDiagnose = !!transport;
   const selectedPlant = plants.find((p) => p.id === plantId);
   const viewing = viewingId ? history.find((h) => h.id === viewingId) ?? null : null;
+  /** Forslaget det siste svaret er lagret som, så knappen kan vise «Lagret». */
+  const savedKey = recordId ? candidateKey(history.find((h) => h.id === recordId)?.candidates[0]) : null;
+  const assistantLabel = transport?.label ?? "Claude";
   // Flere bilder og organvalg gjelder bare Pl@ntNet. KI-leverandøren ser på ett bilde, og det gjør sykdomsvurderingen også.
   const multiPhoto = mode === "plante" && !!settings.plantNetApiKey;
   const photo = photos[0]?.blob ?? null;
@@ -77,18 +87,30 @@ export function IdentifyScreen() {
     setBusy(false);
   }
 
-  /** Legger identifiseringen i historikken, med det første bildet nedskalert. */
-  async function remember(candidates: PlantCandidate[], source: Identification["source"]) {
-    const record: Identification = {
-      id: newId(),
-      createdAt: Date.now(),
-      photo: await compressImage(photos[0].blob, 800, 0.8),
-      photoCount: photos.length,
-      source,
-      candidates,
-    };
+  /**
+   * Lagrer identifiseringen i historikken med det valgte forslaget først, og det første bildet nedskalert.
+   * Er den lagret fra før (eller åpnet fra historikken), byttes bare valget. Returnerer oppføringens id.
+   */
+  async function saveChoice(chosen: PlantCandidate): Promise<string | null> {
+    const putFirst = (list: PlantCandidate[]) => [chosen, ...list.filter((c) => candidateKey(c) !== candidateKey(chosen))];
+    if (viewing) {
+      await db.identifications.update(viewing.id, { candidates: putFirst(viewing.candidates) });
+      return viewing.id;
+    }
+    if (!idResult || photos.length === 0) return null;
+    if (recordId) {
+      await db.identifications.update(recordId, { candidates: putFirst(idResult.candidates) });
+      return recordId;
+    }
+    const record = await newRecord(photos[0].blob, photos.length, idResult.source, putFirst(idResult.candidates));
     await db.identifications.add(record);
     setRecordId(record.id);
+    return record.id;
+  }
+
+  function startAdd(c: PlantCandidate, photoBlob: Blob | null) {
+    setPendingAdd(c);
+    setFormInitial({ name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: photoBlob ?? undefined });
   }
 
   /** Startes bare fra knappen, så brukeren bestemmer selv når Pl@ntNet og KI-leverandøren spørres. */
@@ -110,7 +132,6 @@ export function IdentifyScreen() {
           found = found.map(withListedFacts);
           setIdResult({ candidates: found, remaining: result.remaining, source: "plantnet" });
           if (found.length === 0) setError(`Pl@ntNet fant ingen plante i ${photos.length > 1 ? "bildene" : "bildet"}. Prøv et nærmere bilde av blad, blomst eller frukt.`);
-          else await remember(found, "plantnet");
         } else if (transport) {
           let found = await identifyPlantWithVision(transport, photos[0].blob, ac.signal);
           if (found.length > 0) found = await enrichCandidates(transport, found, ac.signal);
@@ -118,7 +139,6 @@ export function IdentifyScreen() {
           found = found.map(withListedFacts);
           setIdResult({ candidates: found, source: "ki" });
           if (found.length === 0) setError(`${transport.label} kjente ikke igjen noen plante i bildet. Prøv et nærmere bilde.`);
-          else await remember(found, "ki");
         }
       } else if (transport) {
         setDiagnosis("");
@@ -197,7 +217,8 @@ export function IdentifyScreen() {
             plants={plants}
             zone={settings.climateZone}
             hasTransport={!!transport}
-            onAdd={setFormInitial}
+            assistantLabel={assistantLabel}
+            onAdd={(c) => startAdd(c, viewing.photo)}
             onNew={() => {
               setViewingId(null);
               inputRef.current?.click();
@@ -323,7 +344,19 @@ export function IdentifyScreen() {
             {mode === "plante" && idResult && idResult.candidates.length > 0 && (
               <div className="flex flex-col gap-2">
                 <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Forslag</p>
-                <CandidateList candidates={idResult.candidates} photo={photo} plants={plants} zone={settings.climateZone} hasTransport={!!transport} onAdd={setFormInitial} />
+                {idResult.candidates.map((c, i) => (
+                  <CandidateCard
+                    key={`${candidateKey(c)}|${i}`}
+                    candidate={c}
+                    plants={plants}
+                    zone={settings.climateZone}
+                    assistantLabel={assistantLabel}
+                    saved={savedKey !== null && candidateKey(c) === savedKey}
+                    onSave={() => saveChoice(c).catch(() => setError("Kunne ikke lagre identifiseringen. Prøv igjen."))}
+                    onAdd={() => startAdd(c, photo)}
+                  />
+                ))}
+                {!transport && idResult.candidates.some((c) => !c.facts) && <FactsHint />}
                 {idResult.remaining !== undefined && <p className="px-1 text-[11px] text-muted-foreground">{idResult.remaining} oppslag igjen hos Pl@ntNet i dag.</p>}
               </div>
             )}
@@ -369,9 +402,14 @@ export function IdentifyScreen() {
         }}
         initial={formInitial ?? undefined}
         onSaved={(p) => {
-          const id = viewingId ?? recordId;
-          if (id) db.identifications.update(id, { plantId: p.id }).catch(() => undefined);
-          router.push(`/plante/?id=${p.id}`);
+          const chosen = pendingAdd;
+          setPendingAdd(null);
+          (async () => {
+            const id = chosen ? await saveChoice(chosen) : (viewingId ?? recordId);
+            if (id) await db.identifications.update(id, { plantId: p.id });
+          })()
+            .catch(() => undefined)
+            .finally(() => router.push(`/plante/?id=${p.id}`));
         }}
       />
     </>
@@ -424,6 +462,7 @@ function RecordView({
   plants,
   zone,
   hasTransport,
+  assistantLabel,
   onAdd,
   onNew,
   onClose,
@@ -433,12 +472,14 @@ function RecordView({
   plants: Plant[];
   zone?: string;
   hasTransport: boolean;
-  onAdd: (initial: PlantFormInitial) => void;
+  assistantLabel: string;
+  onAdd: (candidate: PlantCandidate) => void;
   onNew: () => void;
   onClose: () => void;
   onDelete: () => void;
 }) {
   const added = record.plantId ? plants.find((p) => p.id === record.plantId) : undefined;
+  const [chosen, ...others] = record.candidates;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2 px-1">
@@ -458,8 +499,21 @@ function RecordView({
           <Check className="size-4" /> Lagt til i hagen som {plantTitle(added)}. Åpne planten.
         </Link>
       )}
-      <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Forslag</p>
-      <CandidateList candidates={record.candidates} photo={record.photo} plants={plants} zone={zone} hasTransport={hasTransport} onAdd={onAdd} />
+      {chosen && (
+        <>
+          <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Lagret som</p>
+          <CandidateCard candidate={chosen} plants={plants} zone={zone} assistantLabel={assistantLabel} onAdd={() => onAdd(chosen)} />
+        </>
+      )}
+      {others.length > 0 && (
+        <>
+          <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Andre forslag</p>
+          {others.map((c, i) => (
+            <CandidateCard key={`${candidateKey(c)}|${i}`} candidate={c} plants={plants} zone={zone} assistantLabel={assistantLabel} onAdd={() => onAdd(c)} />
+          ))}
+        </>
+      )}
+      {!hasTransport && record.candidates.some((c) => !c.facts) && <FactsHint />}
       <div className="flex gap-2">
         <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" onClick={onNew}>
           <Camera data-icon="inline-start" /> Ny identifisering
@@ -472,34 +526,36 @@ function RecordView({
   );
 }
 
-function CandidateList({
-  candidates,
-  photo,
-  plants,
-  zone,
-  hasTransport,
-  onAdd,
-}: {
-  candidates: PlantCandidate[];
-  photo: Blob | null;
-  plants: Plant[];
-  zone?: string;
-  hasTransport: boolean;
-  onAdd: (initial: PlantFormInitial) => void;
-}) {
-  return (
-    <>
-      {candidates.map((c, i) => (
-        <CandidateCard key={`${c.latinName}|${c.name}|${i}`} candidate={c} photo={photo} plants={plants} zone={zone} onAdd={onAdd} />
-      ))}
-      {!hasTransport && candidates.some((c) => !c.facts) && (
-        <p className="px-1 text-[11px] text-muted-foreground">Med en KI-leverandør (Innstillinger) vises også giftighet, herdighet og livsløp for forslagene.</p>
-      )}
-    </>
-  );
+/** Navn og latinsk navn, så samme forslag kjennes igjen på tvers av lister. */
+function candidateKey(c: PlantCandidate | undefined): string | null {
+  return c ? `${c.name.toLowerCase()}|${c.latinName.toLowerCase()}` : null;
 }
 
-function CandidateCard({ candidate: c, photo, plants, zone, onAdd }: { candidate: PlantCandidate; photo: Blob | null; plants: Plant[]; zone?: string; onAdd: (initial: PlantFormInitial) => void }) {
+function FactsHint() {
+  return <p className="px-1 text-[11px] text-muted-foreground">Med en KI-leverandør (Innstillinger) vises også giftighet, herdighet og livsløp for forslagene.</p>;
+}
+
+/**
+ * Ett forslag med knappene i den rekkefølgen de brukes: lagre i historikken (man identifiserer oftest andre steder enn
+ * hjemme), legge til i hagen, og til sist spørre assistenten. Uten `onSave` (åpnet fra historikken) er «Legg til i hagen» først.
+ */
+function CandidateCard({
+  candidate: c,
+  plants,
+  zone,
+  assistantLabel,
+  saved = false,
+  onSave,
+  onAdd,
+}: {
+  candidate: PlantCandidate;
+  plants: Plant[];
+  zone?: string;
+  assistantLabel: string;
+  saved?: boolean;
+  onSave?: () => void;
+  onAdd: () => void;
+}) {
   const candidateCategory = c.category ?? inferCategory(c.latinName);
   const info = candidateCategory ? categoryInfo(candidateCategory) : undefined;
   const latin = c.latinName.toLowerCase();
@@ -548,17 +604,26 @@ function CandidateCard({ candidate: c, photo, plants, zone, onAdd }: { candidate
           Du har allerede {existing.name} i hagen. Åpne planten.
         </Link>
       )}
-      <div className="flex gap-2">
-        <Button className="h-10 flex-1 rounded-xl" onClick={() => onAdd({ name: c.name, latinName: c.latinName, variety: c.variety, category: candidateCategory, photo: photo ?? undefined })}>
-          <Plus data-icon="inline-start" /> Legg til i hagen
-        </Button>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex gap-2">
+          {onSave && (
+            <Button className="h-10 flex-1 rounded-xl" disabled={saved} onClick={onSave}>
+              {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+              {saved ? "Lagret" : "Lagre"}
+            </Button>
+          )}
+          <Button variant={onSave ? "outline" : "default"} className={cn("h-10 flex-1 rounded-xl", onSave && "bg-card")} onClick={onAdd}>
+            <Plus data-icon="inline-start" /> Legg til i hagen
+          </Button>
+        </div>
         <Button
-          variant="outline"
-          className="h-10 flex-1 rounded-xl bg-card"
+          variant="ghost"
+          size="sm"
+          className="h-9 self-start rounded-xl px-2 text-muted-foreground"
           nativeButton={false}
           render={<Link href={assistantHref(undefined, `Fortell meg om ${c.name.toLowerCase()}${c.latinName ? ` (${c.latinName})` : ""}. Passer den i hagen min, og hvordan steller jeg den?`)} />}
         >
-          <Sparkles data-icon="inline-start" /> Spør assistenten
+          <Sparkles data-icon="inline-start" /> Spør {assistantLabel}
         </Button>
       </div>
     </Card>
