@@ -1,6 +1,7 @@
 import data from "@/data/stauder.json";
 import { db } from "./db";
 import { completeText, resolveTransport, type ChatTransport } from "./llm-client";
+import type { PlantCandidate } from "./plant-lookup";
 import { categoryInfo, FACT_TEXT_FIELDS, plantTitle, type DroughtTolerance, type Light, type Plant, type PlantFacts, type PropagationMethod, type Settings, type ToxicityLevel } from "./types";
 
 /**
@@ -47,6 +48,34 @@ export function factsFor(plant: Plant): { facts: PlantFacts; source: "liste" | "
   if (listed && plant.facts) return { facts: { ...plant.facts, ...listed }, source: "begge" };
   if (listed) return { facts: listed, source: "liste" };
   return plant.facts ? { facts: plant.facts, source: "ki" } : undefined;
+}
+
+/** Herdighetssonen som tall: «H5» → 5. */
+function zoneNumber(zone?: string): number | undefined {
+  const m = /^H([1-8])$/i.exec(zone?.trim() ?? "");
+  return m ? Number(m[1]) : undefined;
+}
+
+/** Om en plante med gitt herdighet normalt overvintrer i hagens klimasone. Undefined når en av dem mangler. */
+export function hardyIn(hardiness: string | undefined, zone: string | undefined): boolean | undefined {
+  const plant = zoneNumber(hardiness);
+  const garden = zoneNumber(zone);
+  return plant !== undefined && garden !== undefined ? plant >= garden : undefined;
+}
+
+/** Kortfakta fra staudelisten lagt på et forslag fra identifiseringen. Listen går foran KI-svaret, og alt i den er stauder, altså flerårig. */
+export function withListedFacts(candidate: PlantCandidate): PlantCandidate {
+  const listed = findListedFacts(candidate);
+  if (!listed) return candidate;
+  return {
+    ...candidate,
+    facts: {
+      ...candidate.facts,
+      lifecycle: "flerårig",
+      ...(listed.hardiness ? { hardiness: listed.hardiness } : {}),
+      ...(listed.toxicity ? { toxicity: listed.toxicity.level } : {}),
+    },
+  };
 }
 
 const SYSTEM = [

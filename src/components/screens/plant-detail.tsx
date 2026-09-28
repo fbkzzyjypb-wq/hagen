@@ -48,8 +48,9 @@ export function PlantDetailScreen({ id }: { id: string }) {
   const info = categoryInfo(plant.category);
 
   async function deletePlant() {
-    await db.transaction("rw", [db.plants, db.photos], async () => {
+    await db.transaction("rw", [db.plants, db.photos, db.identifications], async () => {
       await db.photos.where("plantId").equals(plant!.id).delete();
+      await db.identifications.where("plantId").equals(plant!.id).modify({ plantId: undefined });
       await db.plants.delete(plant!.id);
     });
     router.replace("/planter/");

@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Area, Asset, ChatConversation, ChatMessage, MapBackground, Photo, Plant, Settings } from "./types";
+import type { Area, Asset, ChatConversation, ChatMessage, Identification, MapBackground, Photo, Plant, Settings } from "./types";
 import { fallbackTitle, groupIntoSessions } from "./chat-sessions";
 import { newId } from "./id";
 
@@ -12,6 +12,7 @@ class HagenDB extends Dexie {
   assets!: EntityTable<Asset, "id">;
   chatMessages!: EntityTable<ChatMessage, "id">;
   chatConversations!: EntityTable<ChatConversation, "id">;
+  identifications!: EntityTable<Identification, "id">;
 
   constructor() {
     super("hagen");
@@ -91,6 +92,9 @@ class HagenDB extends Dexie {
       plants: "id, name, category, createdAt",
       rules: null,
       completions: null,
+    });
+    this.version(7).stores({
+      identifications: "id, createdAt, plantId",
     });
   }
 }

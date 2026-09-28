@@ -1,9 +1,10 @@
 import { db } from "./db";
-import type { Area, Asset, MapBackground, Photo, Plant, Settings } from "./types";
+import type { Area, Asset, Identification, MapBackground, Photo, Plant, Settings } from "./types";
 
 type ExportedPhoto = Omit<Photo, "blob" | "thumb"> & { blob: string; thumb: string; type: string };
 type ExportedBackground = Omit<MapBackground, "blob"> & { blob: string; type: string };
 type ExportedAsset = Omit<Asset, "blob"> & { blob: string; type: string };
+type ExportedIdentification = Omit<Identification, "photo"> & { photo: string; type: string };
 
 export interface ExportFile {
   app: "hagen";
@@ -15,6 +16,7 @@ export interface ExportFile {
   photos: ExportedPhoto[];
   background?: ExportedBackground;
   assets?: ExportedAsset[];
+  identifications?: ExportedIdentification[];
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -34,14 +36,19 @@ function base64ToBlob(b64: string, type: string): Blob {
 }
 
 export async function exportAll(): Promise<Blob> {
-  const [plants, areas, settings, photos, background, assets] = await Promise.all([
+  const [plants, areas, settings, photos, background, assets, identifications] = await Promise.all([
     db.plants.toArray(),
     db.areas.toArray(),
     db.settings.get("settings"),
     db.photos.toArray(),
     db.mapBackground.get("bg"),
     db.assets.toArray(),
+    db.identifications.toArray(),
   ]);
+  const exportedIdentifications: ExportedIdentification[] = [];
+  for (const i of identifications) {
+    exportedIdentifications.push({ ...i, type: i.photo.type || "image/jpeg", photo: await blobToBase64(i.photo) });
+  }
   const exportedAssets: ExportedAsset[] = [];
   for (const a of assets) {
     exportedAssets.push({ ...a, type: a.blob.type || "image/jpeg", blob: await blobToBase64(a.blob) });
@@ -65,6 +72,7 @@ export async function exportAll(): Promise<Blob> {
     photos: exportedPhotos,
     background: background ? { ...background, type: background.blob.type || "image/jpeg", blob: await blobToBase64(background.blob) } : undefined,
     assets: exportedAssets,
+    identifications: exportedIdentifications,
   };
   return new Blob([JSON.stringify(data)], { type: "application/json" });
 }
@@ -80,8 +88,12 @@ export async function importAll(file: Blob): Promise<{ plants: number; photos: n
     blob: base64ToBlob(p.blob, p.type),
     thumb: base64ToBlob(p.thumb, p.type),
   }));
-  await db.transaction("rw", [db.plants, db.areas, db.settings, db.photos, db.mapBackground, db.assets], async () => {
-    await Promise.all([db.plants.clear(), db.areas.clear(), db.photos.clear(), db.mapBackground.clear(), db.assets.clear()]);
+  await db.transaction("rw", [db.plants, db.areas, db.settings, db.photos, db.mapBackground, db.assets, db.identifications], async () => {
+    await Promise.all([db.plants.clear(), db.areas.clear(), db.photos.clear(), db.mapBackground.clear(), db.assets.clear(), db.identifications.clear()]);
+    for (const i of data.identifications ?? []) {
+      const { type, photo, ...rest } = i;
+      await db.identifications.put({ ...rest, photo: base64ToBlob(photo, type) });
+    }
     for (const a of data.assets ?? []) {
       const { type, blob, ...rest } = a;
       await db.assets.put({ ...rest, blob: base64ToBlob(blob, type) });

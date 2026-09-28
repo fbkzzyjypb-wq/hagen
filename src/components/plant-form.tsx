@@ -16,7 +16,7 @@ import { EMPTY } from "@/lib/hooks";
 import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
-import { categorizeCandidates, inferCategory, lookupPlant, type PlantCandidate } from "@/lib/plant-lookup";
+import { enrichCandidates, inferCategory, lookupPlant, type PlantCandidate } from "@/lib/plant-lookup";
 import { identifyPlantPhotos } from "@/lib/plant-id";
 import { compressImage } from "@/lib/images";
 import { areaInfo, categoryInfo, PLANT_CATEGORIES, plantTitle, type AreaKind, type Plant, type PlantBed, type PlantCategory } from "@/lib/types";
@@ -188,7 +188,7 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
       const result = await identifyPlantPhotos(settings.plantNetApiKey, [{ blob: file, organ: "auto" }], ac.signal);
       if (ac.signal.aborted) return;
       let found = result.candidates;
-      if (transport && found.length > 0) found = await categorizeCandidates(transport, found, ac.signal);
+      if (transport && found.length > 0) found = await enrichCandidates(transport, found, ac.signal);
       if (ac.signal.aborted) return;
       setCandidates(found);
       setLookedUp(null);

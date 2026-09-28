@@ -1,5 +1,5 @@
 import { completeText, type ChatTransport } from "./llm-client";
-import { PLANT_CATEGORIES, type PlantCategory } from "./types";
+import { PLANT_CATEGORIES, type CandidateFacts, type Lifecycle, type PlantCategory, type ToxicityLevel } from "./types";
 
 /** Et forslag fra oppslaget: hva brukeren sannsynligvis mener med navnet som ble skrevet. */
 export type PlantCandidate = {
@@ -10,7 +10,15 @@ export type PlantCandidate = {
   category?: PlantCategory;
   note?: string;
   source: "ki" | "artsdatabanken" | "plantnet";
+  /** Pl@ntNets sikkerhet, 0–1. */
+  score?: number;
+  /** Referansebilder av arten fra Pl@ntNet. */
+  images?: CandidateImage[];
+  /** Kortfakta fra KI-leverandøren og staudelisten (se plant-facts.ts). */
+  facts?: CandidateFacts;
 };
+
+export type CandidateImage = { url: string; organ?: string; author?: string; license?: string };
 
 type TaxonRank = "art" | "underart" | "slekt";
 
@@ -90,8 +98,14 @@ function hitToCandidate(hit: TaxonHit): PlantCandidate {
   };
 }
 
+/** «slekt art» i små bokstaver, uten autornavn og ×, så latinske navn kan sammenlignes. */
 function latinKey(latin: string): string {
-  return latin.toLowerCase().split(" ").slice(0, 2).join(" ");
+  return latin
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w && w !== "×" && w !== "x")
+    .slice(0, 2)
+    .join(" ");
 }
 
 export const CATEGORY_GUIDE = [
@@ -288,39 +302,60 @@ export function inferCategory(latinName: string | undefined): PlantCategory | un
   return CATEGORY_BY_LATIN.get(words.slice(0, 2).join(" ")) ?? CATEGORY_BY_LATIN.get(words[0]);
 }
 
-const CATEGORY_SYSTEM = [
-  "Du er en norsk planteekspert. For hver plante i listen, oppgi hvilken kategori den hører til i en hageapp.",
+const ENRICH_SYSTEM = [
+  "Du er en norsk planteekspert. For hver plante i listen, oppgi hvilken kategori den hører til i en hageapp, og kortfakta for norske forhold.",
   `Kategorier (bruk nøyaktig disse verdiene): ${CATEGORY_GUIDE}.`,
-  'Svar bare med et JSON-objekt der nøkkelen er det latinske navnet slik det står i listen og verdien er kategorien, f.eks. {"Thymus praecox": "urt"}.',
+  "toxicity: ufarlig, lite, giftig, meget eller ukjent, etter Giftinformasjonens inndeling (ufarlig, lite giftig, giftig, meget giftig). Gjelder både mennesker og kjæledyr: bruk det høyeste nivået. Bruk ukjent når du er usikker, aldri ufarlig på gjetning.",
+  "hardiness: høyeste norske herdighetssone planten normalt overvintrer ute i, fra H1 (mildest) til H8. Tom streng for ettårige og planter som ikke overvintrer ute i Norge.",
+  "lifecycle: ettårig, toårig eller flerårig.",
+  'Svar bare med et JSON-objekt der nøkkelen er det latinske navnet slik det står i listen, f.eks. {"Thymus praecox": {"category": "urt", "toxicity": "ufarlig", "hardiness": "H6", "lifecycle": "flerårig"}}.',
 ].join("\n");
 
-/** Fyller inn kategori på kandidater som mangler den (f.eks. fra bildeidentifisering). Ett kall for alle. Uendret ved feil: da gjelder `inferCategory`. */
-export async function categorizeCandidates(transport: ChatTransport, candidates: PlantCandidate[], signal?: AbortSignal): Promise<PlantCandidate[]> {
-  const missing = candidates.filter((c) => !c.category && c.latinName);
+const TOXICITY_LEVELS: ToxicityLevel[] = ["ufarlig", "lite", "giftig", "meget", "ukjent"];
+const LIFECYCLES: Lifecycle[] = ["ettårig", "toårig", "flerårig"];
+
+/**
+ * Fyller inn kategori der den mangler (Pl@ntNet og Artsdatabanken kjenner ikke kategoriene) og kortfakta om giftighet,
+ * herdighet og livsløp på kandidatene, i ett kall for alle. Uendret ved feil: da gjelder `inferCategory`, og faktaene mangler.
+ */
+export async function enrichCandidates(transport: ChatTransport, candidates: PlantCandidate[], signal?: AbortSignal): Promise<PlantCandidate[]> {
+  const missing = candidates.filter((c) => c.latinName && (!c.category || !c.facts));
   if (missing.length === 0) return candidates;
   try {
     const raw = await completeText({
       transport,
-      system: CATEGORY_SYSTEM,
+      system: ENRICH_SYSTEM,
       messages: [{ role: "user", content: missing.map((c) => `- ${c.name} (${c.latinName})`).join("\n") }],
       // Romslig, fordi modeller som tenker før de svarer (Gemini Flash) bruker av samme kvote og ellers svarer tomt.
-      maxTokens: 1500,
+      maxTokens: 2000,
       signal,
     });
     const match = raw.replace(/```(?:json)?/gi, "").match(/\{[\s\S]*\}/);
     if (!match) return candidates;
     const parsed = JSON.parse(match[0]) as Record<string, unknown>;
     // Modellen gjentar ikke alltid navnet helt likt (autornavn, ×), så slekt og art sammenlignes.
-    const latinKey = (latin: string) => latin.toLowerCase().split(/\s+/).filter((w) => w && w !== "×" && w !== "x").slice(0, 2).join(" ");
-    const byLatin = new Map(Object.entries(parsed).map(([k, v]) => [latinKey(k), clean(v).toLowerCase()]));
+    const byLatin = new Map(Object.entries(parsed).map(([k, v]) => [latinKey(k), v]));
     return candidates.map((c) => {
-      if (c.category) return c;
-      const cat = byLatin.get(latinKey(c.latinName));
-      return cat && PLANT_CATEGORIES.some((x) => x.value === cat) ? { ...c, category: cat as PlantCategory } : c;
+      const entry = byLatin.get(latinKey(c.latinName));
+      if (!entry || typeof entry !== "object") return c;
+      const o = entry as Record<string, unknown>;
+      const cat = clean(o.category).toLowerCase();
+      const tox = clean(o.toxicity).toLowerCase();
+      const life = clean(o.lifecycle).toLowerCase();
+      const hardiness = clean(o.hardiness).toUpperCase();
+      const facts: CandidateFacts = {
+        ...c.facts,
+        // Mangler nivået, er giftigheten ukjent. Aldri «ufarlig» som standard.
+        toxicity: c.facts?.toxicity ?? TOXICITY_LEVELS.find((t) => t === tox) ?? "ukjent",
+        hardiness: c.facts?.hardiness ?? (/^H[1-8]$/.test(hardiness) ? hardiness : undefined),
+        lifecycle: c.facts?.lifecycle ?? LIFECYCLES.find((l) => l === life),
+      };
+      const category = c.category ?? (PLANT_CATEGORIES.some((x) => x.value === cat) ? (cat as PlantCategory) : undefined);
+      return { ...c, category, facts };
     });
   } catch (err) {
     if (signal?.aborted) throw err;
-    console.warn("Kunne ikke hente kategori fra KI-leverandøren", err);
+    console.warn("Kunne ikke hente kategori og fakta fra KI-leverandøren", err);
     return candidates;
   }
 }

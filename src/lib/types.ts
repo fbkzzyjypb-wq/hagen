@@ -1,3 +1,5 @@
+import type { PlantCandidate } from "./plant-lookup";
+
 export type PlantCategory =
   | "tre"
   | "frukttre"
@@ -76,6 +78,17 @@ export type PropagationMethod = "deling" | "stiklinger" | "fro" | "avleggere" | 
 /** Giftighet etter Giftinformasjonens inndeling. "ukjent" når KI-leverandøren ikke vet. */
 export type ToxicityLevel = "ufarlig" | "lite" | "giftig" | "meget" | "ukjent";
 export const TOXICITY_LABELS: Record<ToxicityLevel, string> = { ufarlig: "Ufarlig", lite: "Lite giftig", giftig: "Giftig", meget: "Meget giftig", ukjent: "Ukjent" };
+/** Livsløp: ettårig, toårig eller flerårig. */
+export type Lifecycle = "ettårig" | "toårig" | "flerårig";
+export const LIFECYCLE_LABELS: Record<Lifecycle, string> = { ettårig: "Ettårig", toårig: "Toårig", flerårig: "Flerårig" };
+
+/** Kortfakta om et forslag fra identifiseringen, før planten eventuelt legges inn i hagen. */
+export interface CandidateFacts {
+  toxicity?: ToxicityLevel;
+  /** Høyeste herdighetssone planten normalt overvintrer ute i (H1–H8). Mangler for ettårige. */
+  hardiness?: string;
+  lifecycle?: Lifecycle;
+}
 
 /**
  * Tekstfeltene KI-leverandøren fyller ut i tillegg til kjernefeltene: beskrivelse, livsløp og vekstform, plantefamilie,
@@ -149,6 +162,20 @@ export interface Photo {
   thumb: Blob;
   takenAt: number;
   note?: string;
+}
+
+/** En identifisering fra Identifiser-fanen: bildet og forslagene slik de var, så de kan ses igjen senere. */
+export interface Identification {
+  id: string;
+  createdAt: number;
+  /** Første bilde, nedskalert. */
+  photo: Blob;
+  /** Hvor mange bilder som ble sendt. */
+  photoCount: number;
+  source: "plantnet" | "ki";
+  candidates: PlantCandidate[];
+  /** Planten som ble lagt til i hagen fra denne identifiseringen, hvis noen. */
+  plantId?: string;
 }
 
 /** Frittstående bilde, f.eks. forsidebildet på Hjem (id "cover"). */
