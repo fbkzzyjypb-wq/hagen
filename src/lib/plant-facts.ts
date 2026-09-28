@@ -19,8 +19,6 @@ const FACTS_VERSION = 2;
 const LOOKUP_PAUSE_MS = 3000;
 
 const LIGHTS: Light[] = ["sol", "halvskygge", "skygge"];
-const DROUGHT: DroughtTolerance[] = ["lav", "middel", "god"];
-const METHODS: PropagationMethod[] = ["deling", "stiklinger", "fro", "avleggere", "poding", "ingen"];
 const TOXICITY: ToxicityLevel[] = ["ufarlig", "lite", "giftig", "meget", "ukjent"];
 
 /** «Nepeta × faassenii 'Walker's Low'» → «nepeta faassenii». */
@@ -88,7 +86,7 @@ const SYSTEM = [
   "light: én eller flere av sol, halvskygge, skygge. soil: kort om jorda den trives i, med pH når det betyr noe. height og spread: fra–til i cm for en utvokst plante, også for trær (8 m er 800).",
   "watering: kort om vanningsbehov. droughtTolerance: lav, middel eller god. fertilizing: når og med hva det gjødsles.",
   "bloom: blomstringstid og farge. pruning: når og hvordan planten beskjæres, klippes eller skjæres ned. planting: såtid, plantetid, plantedybde og planteavstand. harvest: når og hvordan det høstes. winterCare: vinterdekking, opptak av knoller eller annet som trengs for overvintring.",
-  "propagation.method: deling, stiklinger, fro, avleggere, poding eller ingen. For stauder: bruk deling når rotdeling er anbefalt, stiklinger eller fro når det fungerer bedre, og ingen når planten bør stå i fred (f.eks. pion, julerose, stormhatt, bregner og stauder med pælerot). For andre planter: metoden som passer best for en hobbygartner, eller ingen når planten vanligvis kjøpes ferdig.",
+  "propagation.method: nøyaktig ett av ordene deling, stiklinger, fro (skriv fro, ikke frø), avleggere, poding eller ingen. For stauder: bruk deling når rotdeling er anbefalt, stiklinger eller fro når det fungerer bedre, og ingen når planten bør stå i fred (f.eks. pion, julerose, stormhatt, bregner og stauder med pælerot). For andre planter: metoden som passer best for en hobbygartner, eller ingen når planten vanligvis kjøpes ferdig.",
   "propagation.everyYears: år mellom hver deling, et heltall fra 2 til 10, bare for stauder der metoden er deling. Ellers 0.",
   "propagation.months: én til tre måneder (tall 1–12) der det bør gjøres i Norge. Vårblomstrende stauder deles på sensommeren, sommer- og høstblomstrende om våren når skuddene er et par cm.",
   "propagation.note: én eller to korte setninger på norsk: tegn på at planten trenger deling og hvordan, hvordan stiklinger tas eller frø sås, eller hvorfor den bør stå i fred.",
@@ -101,10 +99,55 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
+/** Fra–til i cm, fra en liste, ett tall eller en tekst som «40–60 cm» eller «2–4 m». */
 function range(value: unknown): [number, number] | undefined {
-  if (!Array.isArray(value)) return typeof value === "number" && value > 0 ? [value, value] : undefined;
-  const nums = value.map(Number).filter((n) => Number.isFinite(n) && n > 0);
-  return nums.length > 0 ? [Math.min(...nums), Math.max(...nums)] : undefined;
+  let nums: number[];
+  let meters = false;
+  if (Array.isArray(value)) nums = value.map(Number);
+  else if (typeof value === "number") nums = [value];
+  else {
+    const s = text(value);
+    nums = (s.match(/\d+(?:[.,]\d+)?/g) ?? []).map((n) => Number(n.replace(",", ".")));
+    meters = /\d\s*m\b/.test(s) && !/cm/.test(s);
+  }
+  nums = nums.filter((n) => Number.isFinite(n) && n > 0).map((n) => (meters ? n * 100 : n));
+  return nums.length > 0 ? [Math.round(Math.min(...nums)), Math.round(Math.max(...nums))] : undefined;
+}
+
+/** Lysforhold fra en liste eller en tekst som «sol til halvskygge». */
+function lightList(value: unknown): Light[] {
+  const parts = Array.isArray(value) ? value.map(text) : text(value).split(/[,/;]|\bog\b|\beller\b|\btil\b/);
+  const found = new Set<Light>();
+  for (const part of parts) {
+    const p = part.toLowerCase();
+    if (/halv|delvis|lett/.test(p)) found.add("halvskygge");
+    else if (/skygge/.test(p)) found.add("skygge");
+    else if (/sol|lys/.test(p)) found.add("sol");
+  }
+  return LIGHTS.filter((l) => found.has(l));
+}
+
+/** Formeringsmåte, også når modellen skriver «frø» eller «stikling». */
+function methodOf(value: unknown): PropagationMethod | undefined {
+  const v = text(value).toLowerCase();
+  if (!v) return undefined;
+  if (/deling|\bdel/.test(v)) return "deling";
+  if (/stikling/.test(v)) return "stiklinger";
+  if (/fr[øo]/.test(v)) return "fro";
+  if (/avlegg/.test(v)) return "avleggere";
+  if (/pod/.test(v)) return "poding";
+  if (/ingen|nei|none/.test(v)) return "ingen";
+  return undefined;
+}
+
+/** Tørketoleranse, også når modellen skriver «moderat» eller «høy». */
+function droughtOf(value: unknown): DroughtTolerance | undefined {
+  const v = text(value).toLowerCase();
+  if (!v) return undefined;
+  if (/middel|moderat|noe|medium/.test(v)) return "middel";
+  if (/lav|dårlig|liten|svak|low/.test(v)) return "lav";
+  if (/god|høy|stor|high/.test(v)) return "god";
+  return undefined;
 }
 
 function monthList(value: unknown): number[] {
@@ -112,36 +155,63 @@ function monthList(value: unknown): number[] {
   return [...new Set(value.map(Number).filter((m) => Number.isInteger(m) && m >= 1 && m <= 12))].sort((a, b) => a - b);
 }
 
-/** JSON-objektet i svaret. Tåler kodegjerder og litt tekst rundt. */
+/** JSON-objektet i svaret. Tåler kodegjerder og litt tekst rundt, og prøver å lukke et svar som ble kuttet av. */
 function parseObject(raw: string): Record<string, unknown> | null {
-  const match = raw.replace(/```(?:json)?/gi, "").match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]) as Record<string, unknown>;
-  } catch {
-    return null;
+  const cleaned = raw.replace(/```(?:json)?/gi, "");
+  const start = cleaned.indexOf("{");
+  if (start < 0) return null;
+  const tryParse = (candidate: string): Record<string, unknown> | null => {
+    try {
+      const o: unknown = JSON.parse(candidate);
+      return o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  };
+  const whole = tryParse(cleaned.slice(start, cleaned.lastIndexOf("}") + 1));
+  if (whole) return whole;
+  // Avkuttet svar: prøv å lukke det som står åpent. Går det ikke, kuttes halen bit for bit (påbegynt tekst, hengende
+  // nøkkel, komma) til resten slutter på en hel verdi. Det som ble kuttet av, mangler uansett.
+  const closers = ["}", "}}", "}}}", "]}", "]}}", "]}}}"];
+  let tail = cleaned.slice(start);
+  for (let step = 0; step < 8; step++) {
+    for (const closer of closers) {
+      const o = tryParse(tail + closer);
+      if (o) return o;
+    }
+    const shorter = tail
+      .replace(/"[^"]*$/, "")
+      .replace(/"[^"]*"\s*:\s*$/, "")
+      .replace(/[,\s]+$/, "");
+    if (shorter === tail) break;
+    tail = shorter;
   }
+  return null;
 }
 
-/** Tolker faktadelen av svaret fra modellen. Null når det vesentlige mangler. */
+/**
+ * Tolker svaret fra modellen. Tåler at enkeltfelt mangler eller er skrevet litt annerledes enn bedt om: kortet viser det
+ * som finnes. Null bare når svaret ikke er JSON, eller nesten ingenting i det lar seg kjenne igjen.
+ */
 export function parseFacts(raw: string): PlantFacts | null {
   const o = parseObject(raw);
   if (!o) return null;
   const hardiness = text(o.hardiness).toUpperCase();
-  const light = Array.isArray(o.light) ? LIGHTS.filter((l) => (o.light as unknown[]).some((v) => text(v).toLowerCase() === l)) : [];
+  const light = lightList(o.light);
   const height = range(o.height);
   const prop = (o.propagation && typeof o.propagation === "object" ? o.propagation : {}) as Record<string, unknown>;
-  const method = METHODS.find((m) => m === text(prop.method).toLowerCase());
-  const drought = DROUGHT.find((d) => d === text(o.droughtTolerance).toLowerCase());
+  const method = methodOf(prop.method);
+  const drought = droughtOf(o.droughtTolerance);
   const tox = (o.toxicity && typeof o.toxicity === "object" ? o.toxicity : {}) as Record<string, unknown>;
-  if (light.length === 0 || !height || !method || !drought) return null;
-  const everyYears = Math.round(Number(prop.everyYears));
-  const months = monthList(prop.months).slice(0, 3);
   const extra: Partial<PlantFacts> = {};
   for (const field of FACT_TEXT_FIELDS) {
     const value = text(o[field]);
     if (value) extra[field] = value;
   }
+  // Et JSON-objekt som nesten ikke sier noe om planten (f.eks. en beklagelse), er ikke plantefakta.
+  const known = [extra.description, light.length > 0, height, text(o.soil), text(o.watering), drought, method].filter(Boolean).length;
+  if (known < 3) return null;
+  const everyYears = Math.round(Number(prop.everyYears));
   return {
     ...extra,
     // Ettårige og planter som ikke overvintrer ute har ingen herdighetssone.
@@ -150,12 +220,14 @@ export function parseFacts(raw: string): PlantFacts | null {
     soil: text(o.soil),
     height,
     spread: range(o.spread),
-    propagation: {
-      method,
-      everyYears: method === "deling" && everyYears >= 2 && everyYears <= 15 ? everyYears : 0,
-      months,
-      note: text(prop.note),
-    },
+    propagation: method
+      ? {
+          method,
+          everyYears: method === "deling" && everyYears >= 2 && everyYears <= 15 ? everyYears : 0,
+          months: monthList(prop.months).slice(0, 3),
+          note: text(prop.note),
+        }
+      : undefined,
     watering: text(o.watering),
     droughtTolerance: drought,
     // Mangler nivået, er giftigheten ukjent. Aldri «ufarlig» som standard.
@@ -166,14 +238,40 @@ export function parseFacts(raw: string): PlantFacts | null {
 /** Det oppslaget trenger å vite om planten. */
 type FactsSubject = Pick<Plant, "name" | "variety" | "latinName" | "category">;
 
-async function askFacts(transport: ChatTransport, settings: Settings, plant: FactsSubject): Promise<PlantFacts | null> {
+/** Svaret fra leverandøren, tolket. `raw` er teksten slik den kom, til feilmeldinger når den ikke lot seg tolke. */
+async function askFacts(transport: ChatTransport, settings: Settings, plant: FactsSubject): Promise<{ facts: PlantFacts | null; raw: string }> {
   const where = [settings.location, settings.climateZone && `klimasone ${settings.climateZone}`].filter(Boolean).join(", ");
   const content = [`${plantTitle(plant)}${plant.latinName ? ` (${plant.latinName})` : ""}`, `Kategori: ${categoryInfo(plant.category).label}`, where && `Hagen ligger i: ${where}`]
     .filter(Boolean)
     .join("\n");
   // Romslig: modeller som tenker før de svarer (Gemini Flash) bruker av samme kvote, og et avkuttet svar gir ugyldig JSON.
-  const raw = await completeText({ transport, system: SYSTEM, messages: [{ role: "user", content }], maxTokens: 4000 });
-  return parseFacts(raw);
+  const maxTokens = 8000;
+  let raw = await completeText({ transport, system: SYSTEM, messages: [{ role: "user", content }], maxTokens });
+  let facts = parseFacts(raw);
+  // Et svar som ikke slutter på «}» ble kuttet av. Det reparerte svaret kan mangle felt, så vi spør en gang til.
+  const complete = /\}\s*(```)?\s*$/.test(raw);
+  if (!facts || !complete) {
+    // Ett forsøk til med strengere beskjed, med det forrige svaret som utgangspunkt. Går det heller ikke, brukes det vi har.
+    const retryRaw = await completeText({
+      transport,
+      system: SYSTEM,
+      messages: [
+        { role: "user", content },
+        { role: "assistant", content: raw.slice(0, 2000) },
+        { role: "user", content: "Svar nå bare med JSON-objektet, komplett og uten annen tekst eller kodegjerder." },
+      ],
+      maxTokens,
+    });
+    const retryFacts = parseFacts(retryRaw);
+    if (retryFacts) {
+      facts = retryFacts;
+      raw = retryRaw;
+    } else if (!facts) {
+      raw = retryRaw;
+    }
+  }
+  if (process.env.NODE_ENV !== "production" && !facts) console.debug("[plantefakta] svaret lot seg ikke tolke", raw);
+  return { facts, raw };
 }
 
 /** Oppslag som pågår, per oppføring. Lagring og åpning av oppføringen kan be om det samme samtidig, og skal dele ett kall. */
@@ -199,8 +297,8 @@ async function lookupIdentificationFacts(id: string): Promise<void> {
   const settings = await db.settings.get("settings");
   const transport = settings && navigator.onLine ? resolveTransport(settings) : null;
   if (!settings || !transport) return;
-  const facts = await askFacts(transport, settings, { name: chosen.name, variety: chosen.variety, latinName: chosen.latinName, category: chosen.category ?? inferCategory(chosen.latinName) ?? "annet" });
-  if (!facts) throw new Error(`Svaret fra ${transport.label} lot seg ikke tolke. Prøv igjen.`);
+  const { facts, raw } = await askFacts(transport, settings, { name: chosen.name, variety: chosen.variety, latinName: chosen.latinName, category: chosen.category ?? inferCategory(chosen.latinName) ?? "annet" });
+  if (!facts) throw new Error(`Svaret fra ${transport.label} lot seg ikke tolke. Det begynte slik: «${raw.replace(/\s+/g, " ").slice(0, 120)}»`);
   await db.transaction("rw", [db.identifications], async () => {
     // Er forslaget byttet mens vi ventet på svaret, gjelder ikke svaret lenger.
     const current = await db.identifications.get(id);
@@ -235,7 +333,7 @@ export async function ensurePlantFacts(): Promise<void> {
         try {
           const wait = lastLookup + LOOKUP_PAUSE_MS - Date.now();
           if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-          facts = await askFacts(transport, settings, plant);
+          facts = (await askFacts(transport, settings, plant)).facts;
           lastLookup = Date.now();
         } catch (err) {
           // Nett- eller leverandørfeil: ikke flere oppslag i denne runden. Prøves igjen senere.

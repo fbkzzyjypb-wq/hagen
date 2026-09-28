@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card";
 import { factsFor } from "@/lib/plant-facts";
 import { capitalize } from "@/lib/plant-lookup";
-import { MONTHS_NB_SHORT, TOXICITY_LABELS, type DroughtTolerance, type Plant, type PlantCategory, type PropagationMethod } from "@/lib/types";
+import { MONTHS_NB_SHORT, TOXICITY_LABELS, type DroughtTolerance, type Plant, type PlantCategory, type PlantFacts, type PropagationMethod } from "@/lib/types";
 import { cn } from "cn";
 
 /** Det faktakortet trenger: navn og latinsk navn for oppslag i staudelisten, KI-svaret, og kategori for ordvalget. */
@@ -29,13 +29,8 @@ export function FactsCard({ subject, className }: { subject: FactsSubject; class
   const found = factsFor(subject);
   if (!found) return null;
   const { facts, source } = found;
-  const { method, everyYears, months = [], note } = facts.propagation;
   const toxic = facts.toxicity?.level === "giftig" || facts.toxicity?.level === "meget";
-  // Bare stauder «bør stå i fred». For andre planter betyr ingen at de vanligvis kjøpes ferdige.
-  const methodLabel = method === "ingen" && subject.category !== "staude" ? "Formeres sjelden i hagen" : METHOD_LABELS[method];
-  const propagation = [method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : methodLabel, months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", ")]
-    .filter(Boolean)
-    .join(" · ");
+  const propagation = facts.propagation ? describePropagation(facts.propagation, subject.category) : null;
   return (
     <Card className={cn("gap-3 px-4", className)}>
       <p className="text-sm font-semibold">Plantefakta</p>
@@ -44,9 +39,9 @@ export function FactsCard({ subject, className }: { subject: FactsSubject; class
       {facts.family && <Row label="Familie" value={facts.family} />}
       {facts.origin && <Row label="Opprinnelse" value={facts.origin} />}
       {facts.hardiness && <Row label="Herdighet" value={facts.hardiness} />}
-      <Row label="Lys" value={capitalize(facts.light.join(", "))} />
-      <Row label="Størrelse" value={`${sizeRange(facts.height)} høy${facts.spread ? `, ${sizeRange(facts.spread)} bred` : ""}`} />
-      <Row label="Tørke" value={DROUGHT_LABELS[facts.droughtTolerance]} />
+      {facts.light.length > 0 && <Row label="Lys" value={capitalize(facts.light.join(", "))} />}
+      {facts.height && <Row label="Størrelse" value={`${sizeRange(facts.height)} høy${facts.spread ? `, ${sizeRange(facts.spread)} bred` : ""}`} />}
+      {facts.droughtTolerance && <Row label="Tørke" value={DROUGHT_LABELS[facts.droughtTolerance]} />}
       {facts.soil && <Block label="Jord" value={facts.soil} />}
       {facts.watering && <Block label="Vanning" value={facts.watering} />}
       {facts.fertilizing && <Block label="Gjødsling" value={facts.fertilizing} />}
@@ -55,7 +50,7 @@ export function FactsCard({ subject, className }: { subject: FactsSubject; class
       {facts.planting && <Block label="Såing og planting" value={facts.planting} />}
       {facts.harvest && <Block label="Høsting" value={facts.harvest} />}
       {facts.winterCare && <Block label="Overvintring" value={facts.winterCare} />}
-      {(method !== "ingen" || note) && <Block label="Formering" value={propagation} note={note} />}
+      {propagation && <Block label="Formering" value={propagation.value} note={propagation.note} />}
       {facts.pests && <Block label="Sykdommer og skadedyr" value={facts.pests} />}
       {facts.wildlife && <Block label="Dyreliv" value={facts.wildlife} />}
       {facts.edible && <Block label="Spiselig" value={facts.edible} />}
@@ -77,6 +72,17 @@ export function FactsCard({ subject, className }: { subject: FactsSubject; class
       </p>
     </Card>
   );
+}
+
+/** «Deling hvert 3. år · apr, mai» med notatet under. Null når planten hverken formeres eller har noe å si om det. */
+function describePropagation({ method, everyYears, months = [], note }: NonNullable<PlantFacts["propagation"]>, category?: PlantCategory): { value: string; note?: string } | null {
+  if (method === "ingen" && !note) return null;
+  // Bare stauder «bør stå i fred». For andre planter betyr ingen at de vanligvis kjøpes ferdige.
+  const methodLabel = method === "ingen" && category !== "staude" ? "Formeres sjelden i hagen" : METHOD_LABELS[method];
+  const value = [method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : methodLabel, months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", ")]
+    .filter(Boolean)
+    .join(" · ");
+  return { value, note: note || undefined };
 }
 
 function Block({ label, value, note, valueClassName }: { label: string; value: string; note?: string; valueClassName?: string }) {

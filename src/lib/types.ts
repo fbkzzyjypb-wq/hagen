@@ -102,13 +102,14 @@ export type FactTextField = (typeof FACT_TEXT_FIELDS)[number];
 export interface PlantFacts extends Partial<Record<FactTextField, string>> {
   /** Høyeste herdighetssone planten normalt klarer seg i, H1 (mildest) til H8. Mangler for ettårige. */
   hardiness?: string;
+  /** Tom når KI-svaret ikke sa noe om lys. */
   light: Light[];
   soil: string;
   /** Høyde i cm, fra–til. */
-  height: [number, number];
+  height?: [number, number];
   /** Bredde i cm, fra–til. */
   spread?: [number, number];
-  propagation: {
+  propagation?: {
     method: PropagationMethod;
     /** År mellom hver deling når metoden er deling. */
     everyYears?: number;
@@ -117,7 +118,7 @@ export interface PlantFacts extends Partial<Record<FactTextField, string>> {
     note: string;
   };
   watering: string;
-  droughtTolerance: DroughtTolerance;
+  droughtTolerance?: DroughtTolerance;
   /** Giftighet for mennesker og kjæledyr. Mangler på fakta som ble slått opp før feltet fantes. */
   toxicity?: { level: ToxicityLevel; note: string };
 }
