@@ -1,6 +1,5 @@
 import { completeText, type ChatTransport } from "./llm-client";
 import { PLANT_CATEGORIES, type PlantCategory } from "./types";
-import { PLANT_PROFILES, type PlantProfile } from "./care-rules";
 
 /** Et forslag fra oppslaget: hva brukeren sannsynligvis mener med navnet som ble skrevet. */
 export type PlantCandidate = {
@@ -233,20 +232,6 @@ export function parseCandidates(raw: string): PlantCandidate[] {
     if (out.length === 3) break;
   }
   return out;
-}
-
-/** Innebygd planteprofil (med stell-kalender) som passer kandidaten, hvis noen. */
-export function matchProfile(candidate: PlantCandidate): PlantProfile | undefined {
-  const name = candidate.name.toLowerCase();
-  const latin = candidate.latinName.toLowerCase();
-  const genus = latin.split(" ")[0];
-  return PLANT_PROFILES.find((p) => {
-    if (candidate.category && p.category !== candidate.category) return false;
-    if (p.name.toLowerCase() === name) return true;
-    if (!p.latinName || !latin) return false;
-    const profileLatin = p.latinName.toLowerCase();
-    return profileLatin === latin || (!profileLatin.includes(" ") && profileLatin === genus);
-  });
 }
 
 /**

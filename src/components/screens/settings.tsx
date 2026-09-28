@@ -48,7 +48,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const counts = useLiveQuery(async () => ({
     plants: await db.plants.count(),
     photos: await db.photos.count(),
-    rules: await db.rules.count(),
   }), []);
 
   const [gardenName, setGardenName] = useState(settings.gardenName);
@@ -381,7 +380,7 @@ function SettingsForm({ settings }: { settings: Settings }) {
         <Section title="Data">
           <Card className="gap-3 px-4">
             <p className="text-sm text-muted-foreground">
-              Alt lagres lokalt på denne telefonen{counts ? `: ${counts.plants} planter, ${counts.photos} bilder og ${counts.rules} oppgaveregler` : ""}. Ta en sikkerhetskopi av og til, og lagre den i Filer eller iCloud.
+              Alt lagres lokalt på denne telefonen{counts ? `: ${counts.plants} planter og ${counts.photos} bilder` : ""}. Ta en sikkerhetskopi av og til, og lagre den i Filer eller iCloud.
             </p>
             <div className="flex gap-2">
               <Button
@@ -430,7 +429,6 @@ function SettingsForm({ settings }: { settings: Settings }) {
             <p className="flex items-center gap-2 text-foreground">
               <CheckCircle2 className="size-4 text-primary" /> Hagen, versjon 0.1
             </p>
-            <p>Stell-kalenderen er laget for norsk klima og er et utgangspunkt. Juster oppgaver og måneder så de passer hagen din.</p>
             <p>Bilder og data lagres på telefonen. Har du satt opp KI-leverandør eller Pl@ntNet, sendes planteopplysninger, spørsmål og bildene du identifiserer dit.</p>
           </Card>
         </Section>

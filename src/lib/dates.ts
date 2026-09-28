@@ -25,11 +25,3 @@ export function isoDate(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
-export function currentMonth(): number {
-  return new Date().getMonth() + 1;
-}
-
-export function currentYear(): number {
-  return new Date().getFullYear();
-}

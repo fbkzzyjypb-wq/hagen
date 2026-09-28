@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Area, Asset, CareRule, ChatConversation, ChatMessage, MapBackground, Photo, Plant, Settings, TaskCompletion } from "./types";
+import type { Area, Asset, ChatConversation, ChatMessage, MapBackground, Photo, Plant, Settings } from "./types";
 import { fallbackTitle, groupIntoSessions } from "./chat-sessions";
 import { newId } from "./id";
 
@@ -7,8 +7,6 @@ class HagenDB extends Dexie {
   plants!: EntityTable<Plant, "id">;
   areas!: EntityTable<Area, "id">;
   photos!: EntityTable<Photo, "id">;
-  rules!: EntityTable<CareRule, "id">;
-  completions!: EntityTable<TaskCompletion, "id">;
   settings!: EntityTable<Settings, "id">;
   mapBackground!: EntityTable<MapBackground, "id">;
   assets!: EntityTable<Asset, "id">;
@@ -88,6 +86,12 @@ class HagenDB extends Dexie {
           for (const m of group) await tx.table("chatMessages").update(m.id, { conversationId: conversation.id, plantId: undefined });
         }
       });
+    // Oppgavene er fjernet fra appen: tabellene slettes, og indeksen på planteprofil, som hørte til dem, tas bort.
+    this.version(6).stores({
+      plants: "id, name, category, createdAt",
+      rules: null,
+      completions: null,
+    });
   }
 }
 

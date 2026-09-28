@@ -1,6 +1,6 @@
 # Hagen
 
-Egen hage-app for iPhone: oversikt over planter og hvor de står, bilder gjennom årene, valgfritt hagekart og en stell-kalender med forslag til hva som kan gjøres måned for måned. Bygget som web-app (PWA) med Next.js, og installeres fra nettleseren uten App Store eller TestFlight.
+Egen hage-app for iPhone: oversikt over planter og hvor de står, bilder gjennom årene, valgfritt hagekart og en KI-assistent som kjenner hagen din. Bygget som web-app (PWA) med Next.js, og installeres fra nettleseren uten App Store eller TestFlight.
 
 ## Kom i gang lokalt
 
@@ -31,29 +31,21 @@ Plantene grupperes etter **plassering**: navngitte steder som «Drivhuset», «E
 
 Hagekartet er skjult som standard og slås på under **Innstillinger → Hagen → Vis hagekartet**. Der kan plasseringene få en figur på kartet og plantene settes inn. Ingenting krever kartet.
 
-## Plantefakta og deling
+## Plantefakta
 
 [src/data/stauder.json](src/data/stauder.json) er en liste over vanlige hagestauder med herdighet, lysforhold, jord, størrelse, vanning, tørketoleranse, giftighet og formering: om rotdeling er anbefalt, hvor ofte og når, eller om stiklinger eller frø er bedre. Giftigheten følger Giftinformasjonens inndeling (ufarlig, lite giftig, giftig, meget giftig) og gjelder både mennesker og kjæledyr. Verdiene er veiledende. Planter slås opp på latinsk navn (art, så slekt) og deretter norsk navn, og faktaene vises under **Info** på plantesiden. Nye stauder legges til ved å kopiere en oppføring i filen. Feltene er beskrevet i `PlantFacts` i `src/lib/types.ts`.
 
 Alle planter, uansett kategori, slås i tillegg opp hos KI-leverandøren når de legges til (og ved oppstart for planter som ikke er slått opp ennå). Svaret lagres på planten og har de samme feltene pluss beskrivelse, type, plantefamilie, opprinnelse, gjødsling, blomstring, beskjæring, såing og planting, høsting, overvintring, sykdommer og skadedyr, verdi for dyrelivet, spiselighet og annet verdt å vite. Felt som ikke er relevante for planten utelates. For stauder i listen går verdiene fra listen foran KI-svaret. Oppslagene går ett om gangen med en kort pause, så gratisnivåene hos leverandørene holder, og uten KI-leverandør vises bare stauder fra listen.
 
-Det samme oppslaget vurderer kategoriens standardoppgaver for akkurat den planten, så de ikke bare antas. Oppgaver som ikke passer (f.eks. «Samle frø» for et tre som er lagt inn som staude) slås av for planten med en begrunnelse, månedene justeres der planten trenger det, og inntil to viktige egne oppgaver legges til. Passer standarden, blir planten stående i fellesoppgaven. Regler fra planteprofiler og regler du har laget eller slått av selv, røres ikke. Bytter planten kategori, fjernes KI-oppgavene og vurderingen gjøres på nytt. Alt kan overstyres per plante under **Stell**. Uten KI-leverandør gjelder standardoppgavene som de er.
-
-For stauder styrer faktaene også delingen. Fellesregelen «Del og flytt stauder» kommer hvert tredje år ut fra plantens alder (plantingsår, ellers året planten ble lagt inn). Når en staude er slått opp, får den sin egen deleregel i stedet: asters hvert 3. år, hosta hvert 5., og pion, julerose og andre som bør stå i fred får regelen slått av med en forklaring. Regelen kan slås av og på per plante under **Stell**.
-
 ## Bilder
 
 Egne bilder tas eller lastes opp fra plantesiden (**Ta bilde**) og i planteskjemaet. Alle beholdes med dato, slik at fanen **Bilder** blir en tidslinje over hvordan planten utvikler seg.
 
-## Oppgaver i hagen
-
-Fanen **Oppgaver** viser forslag til hva som kan gjøres hver måned. Oppgavene er forslag og hukes ikke av. De kommer fra plantene dine og fra hageoppgavene i `GARDEN_RULES` ([src/lib/care-rules.ts](src/lib/care-rules.ts)), som følger en månedsoversikt for mildt, vindutsatt kystklima. Juster gjerne et par uker etter hvordan sesongen blir.
-
 ## KI-assistent
 
-Fanen **Assistent** er en chat om hagen. Alle plantene dine (med sort, plantingsår og notater), stedet, klimasonen og månedens oppgaver sendes med som kontekst, så du kan spørre direkte om «rosen» eller «epletreet». Knappene **Spør ...** på Hjem og på hver plante åpner den samme fanen, med planten i fokus.
+Fanen **Assistent** er en chat om hagen. Alle plantene dine (med sort, plantingsår og notater), stedet og klimasonen sendes med som kontekst, så du kan spørre direkte om «rosen» eller «epletreet». Knappene **Spør ...** på Hjem og på hver plante åpner den samme fanen, med planten i fokus.
 
-**Planteforslag:** i skjemaet for ny plante slås navn som ikke finnes i den innebygde listen opp mens du skriver. Først i [Artsdatabanken](https://artsdatabanken.no) (gratis, uten nøkkel), som gir riktig latinsk navn for norske artsnavn som «kryptimian» og «prydkattehale». Treffene sendes så til KI-leverandøren, som legger til kategori, sort og en kort beskrivelse, og som også kjenner hagenavn og sorter Artsdatabanken ikke har, som «hengehjertetre» (Cercidiphyllum japonicum 'Pendulum'). Uten KI-leverandør vises treffene fra Artsdatabanken direkte.
+**Planteforslag:** i skjemaet for ny plante slås navnet opp mens du skriver. Først i [Artsdatabanken](https://artsdatabanken.no) (gratis, uten nøkkel), som gir riktig latinsk navn for norske artsnavn som «kryptimian» og «prydkattehale». Treffene sendes så til KI-leverandøren, som legger til kategori, sort og en kort beskrivelse, og som også kjenner hagenavn og sorter Artsdatabanken ikke har, som «hengehjertetre» (Cercidiphyllum japonicum 'Pendulum'). Uten KI-leverandør vises treffene fra Artsdatabanken direkte.
 
 **Identifiser (egen side, snarvei på Hjem):** legg til opptil fem bilder av samme plante, velg hva hvert bilde viser (blad, blomst, frukt eller bark, eller la Pl@ntNet avgjøre det selv) og trykk **Identifiser**. Ingenting sendes før du trykker, og alle bildene går i ett kall til Pl@ntNet. Du får artsforslag som kan legges rett inn i hagen med det første bildet. Eller velg «Hva feiler den?» og få en vurdering av sykdom eller skade fra KI-leverandøren (krever en modell som tåler bilder, som Gemini Flash), med mulighet for å lagre bildet og vurderingen på planten. Kameraknappen ved navnefeltet i «Ny plante» sender bildet til [Pl@ntNet](https://my.plantnet.org) (gratis nøkkel for privat bruk, legges inn under **Innstillinger → Planteidentifikasjon**). Hos Pl@ntNet må «expose my API key» være på, med appens adresse inkludert protokoll under Authorized domains, f.eks. `https://<brukernavn>.github.io` og `http://localhost:3000` for utvikling. Du får artsforslag med sikkerhet i prosent, norsk navn fra Artsdatabanken og kategori fra KI-leverandøren hvis den er satt opp. Bildet lagres som første bilde på planten.
 
@@ -68,10 +60,8 @@ Alt ligger lokalt på telefonen. Under **Innstillinger → Data** kan du eksport
 
 ## Struktur
 
-- `src/app/` – sider (Hjem, Planter, Plante, Kart, Oppgaver, Assistent, Identifiser, Innstillinger)
+- `src/app/` – sider (Hjem, Planter, Plante, Kart, Assistent, Identifiser, Innstillinger)
 - `src/components/screens/` – skjermene
-- `src/lib/care-rules.ts` – standard stell-kalender og planteprofiler for norsk klima
-- `src/lib/tasks.ts` – utleder månedens oppgaver
 - `src/lib/db.ts` – lokal database (Dexie/IndexedDB)
 - `src/lib/llm-client.ts` – strømming fra OpenAI-kompatible KI-leverandører
 - `src/lib/chat.ts` og `src/lib/chat-sessions.ts` – samtaler, bolker på én time, titler og sammendrag

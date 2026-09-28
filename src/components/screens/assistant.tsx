@@ -17,8 +17,7 @@ import { buildGardenContext, buildGardenPrompt, claudeUrl, SUGGESTED_QUESTIONS }
 import { resolveTransport, type ChatTransport } from "@/lib/llm-client";
 import { createConversation, deleteConversation, refreshSummary } from "@/lib/chat";
 import { isWithinSession } from "@/lib/chat-sessions";
-import { tasksForMonth } from "@/lib/tasks";
-import { currentMonth, currentYear, formatRelative } from "@/lib/dates";
+import { formatRelative } from "@/lib/dates";
 import type { Area, ChatConversation, Plant } from "@/lib/types";
 import { cn } from "cn";
 
@@ -44,22 +43,18 @@ export function AssistantScreen({ focusPlantId, initialQuestion }: Props) {
   // Stabil referanse, så effekter som avhenger av leverandøren ikke kjører på hver render.
   const transport = useMemo(() => resolveTransport(settings), [settings]);
   const plants = useLiveQuery(() => db.plants.toArray(), []) ?? EMPTY;
-  const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
   const conversations = useLiveQuery(() => db.chatConversations.orderBy("updatedAt").reverse().toArray(), []);
 
-  const monthTasks = useMemo(() => tasksForMonth(currentMonth(), currentYear(), rules, plants), [rules, plants]);
-
   if (!transport) {
     const focusPlant = plants.find((p) => p.id === focusPlantId);
-    return <ClaudeLinkScreen settings={settings} plants={plants} areas={areas} monthTasks={monthTasks} focusPlant={focusPlant} initialQuestion={initialQuestion} />;
+    return <ClaudeLinkScreen settings={settings} plants={plants} areas={areas} focusPlant={focusPlant} initialQuestion={initialQuestion} />;
   }
   return (
     <ChatScreen
       transport={transport}
       plants={plants}
       areas={areas}
-      monthTasks={monthTasks}
       conversations={conversations}
       settings={settings}
       focusPlantId={focusPlantId}
@@ -72,14 +67,13 @@ type ChatScreenProps = {
   transport: ChatTransport;
   plants: Plant[];
   areas: Area[];
-  monthTasks: ReturnType<typeof tasksForMonth>;
   conversations: ChatConversation[] | undefined;
   settings: ReturnType<typeof useSettings>;
   focusPlantId?: string;
   initialQuestion?: string;
 };
 
-function ChatScreen({ transport, plants, areas, monthTasks, conversations, settings, focusPlantId, initialQuestion }: ChatScreenProps) {
+function ChatScreen({ transport, plants, areas, conversations, settings, focusPlantId, initialQuestion }: ChatScreenProps) {
   /** undefined = ikke bestemt ennå, null = ny samtale. */
   const [activeId, setActiveId] = useState<string | null | undefined>(undefined);
   /** Samtalen ble valgt fra historikken, så den fortsettes selv om det er lenge siden sist. */
@@ -122,7 +116,7 @@ function ChatScreen({ transport, plants, areas, monthTasks, conversations, setti
 
   const active = useMemo(() => (activeId ? (conversations ?? []).find((c) => c.id === activeId) ?? null : null), [activeId, conversations]);
   const focusPlant = useMemo(() => plants.find((p) => p.id === (activeId === null || activeId === undefined ? focusPlantId : active?.plantId)), [plants, activeId, focusPlantId, active]);
-  const context = useMemo(() => buildGardenContext({ settings, plants, areas, monthTasks, focusPlant }), [settings, plants, areas, monthTasks, focusPlant]);
+  const context = useMemo(() => buildGardenContext({ settings, plants, areas, focusPlant }), [settings, plants, areas, focusPlant]);
   const suggestions = focusPlant ? plantSuggestions(focusPlant) : SUGGESTED_QUESTIONS;
 
   function leave(previousId: string | null | undefined) {
@@ -349,14 +343,12 @@ function ClaudeLinkScreen({
   settings,
   plants,
   areas,
-  monthTasks,
   focusPlant,
   initialQuestion = "",
 }: {
   settings: ReturnType<typeof useSettings>;
   plants: Plant[];
   areas: Area[];
-  monthTasks: ReturnType<typeof tasksForMonth>;
   focusPlant?: Plant;
   initialQuestion?: string;
 }) {
@@ -364,8 +356,8 @@ function ClaudeLinkScreen({
   const [copied, setCopied] = useState(false);
   const suggestions = focusPlant ? plantSuggestions(focusPlant) : SUGGESTED_QUESTIONS;
   const prompt = useMemo(
-    () => buildGardenPrompt(question || "Hva bør jeg gjøre i hagen nå?", { settings, plants, areas, monthTasks, focusPlant }),
-    [question, settings, plants, areas, monthTasks, focusPlant]
+    () => buildGardenPrompt(question || "Hva bør jeg gjøre i hagen nå?", { settings, plants, areas, focusPlant }),
+    [question, settings, plants, areas, focusPlant]
   );
 
   async function copy() {

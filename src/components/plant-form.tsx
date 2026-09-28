@@ -16,13 +16,12 @@ import { EMPTY } from "@/lib/hooks";
 import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
-import { categorizeCandidates, inferCategory, lookupPlant, matchProfile, type PlantCandidate } from "@/lib/plant-lookup";
+import { categorizeCandidates, inferCategory, lookupPlant, type PlantCandidate } from "@/lib/plant-lookup";
 import { identifyPlantPhotos } from "@/lib/plant-id";
 import { compressImage } from "@/lib/images";
 import { areaInfo, categoryInfo, PLANT_CATEGORIES, plantTitle, type AreaKind, type Plant, type PlantBed, type PlantCategory } from "@/lib/types";
 import { BED_KINDS, bedsOf, createBed } from "@/lib/beds";
-import { findProfile, rulesFromProfile, searchProfiles, type PlantProfile } from "@/lib/care-rules";
-import { ensurePlantFacts, resetPlantTasks } from "@/lib/plant-facts";
+import { ensurePlantFacts } from "@/lib/plant-facts";
 
 /** Forhåndsutfylling av skjemaet for en ny plante, f.eks. fra bildeidentifisering. */
 export type PlantFormInitial = Partial<Pick<Plant, "name" | "latinName" | "variety" | "category" | "beds">> & { photo?: Blob };
@@ -91,8 +90,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     setNewBedKind("bed");
   }
   const [notes, setNotes] = useState(plant?.notes ?? "");
-  const [profileKey, setProfileKey] = useState<string | undefined>(plant?.profileKey);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const settings = useSettings();
@@ -115,7 +112,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
   const photoInputRef = useRef<HTMLInputElement>(null);
   const identifyAbort = useRef<AbortController | null>(null);
 
-  const suggestions = useMemo(() => (showSuggestions && !plant ? searchProfiles(name) : []), [name, showSuggestions, plant]);
   const query = name.trim();
 
   // Planter du allerede har med lignende navn, så du ser dem før du legger inn en til.
@@ -151,11 +147,11 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     [transport]
   );
 
-  // Slår opp automatisk litt etter at du slutter å skrive, når den innebygde listen ikke har treff.
+  // Slår opp automatisk litt etter at du slutter å skrive.
   useEffect(() => {
     if (typedName === null || latinName.trim()) return;
     const q = typedName.trim();
-    if (q.length < 4 || searchProfiles(q).length > 0) return;
+    if (q.length < 4) return;
     const ac = new AbortController();
     const timer = setTimeout(() => runLookup(q, ac), 900);
     return () => {
@@ -187,7 +183,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     const ac = new AbortController();
     identifyAbort.current = ac;
     setIdentifying(true);
-    setShowSuggestions(false);
     resetLookup();
     try {
       const result = await identifyPlantPhotos(settings.plantNetApiKey, [{ blob: file, organ: "auto" }], ac.signal);
@@ -219,7 +214,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     manualAbort.current?.abort();
     const ac = new AbortController();
     manualAbort.current = ac;
-    setShowSuggestions(false);
     runLookup(query, ac);
   }
 
@@ -229,16 +223,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     setLookupError(null);
   }
 
-  function applyProfile(p: PlantProfile) {
-    setName(p.name);
-    setLatinName(p.latinName);
-    setCategory(p.category);
-    setProfileKey(p.key);
-    setShowSuggestions(false);
-    setTypedName(null);
-    resetLookup();
-  }
-
   function applyCandidate(c: PlantCandidate) {
     setName(c.name);
     setLatinName(c.latinName);
@@ -246,16 +230,13 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
     // Forslag uten kategori (Pl@ntNet og Artsdatabanken uten KI-svar) skal ikke bli stående som standardvalget «Staude».
     const candidateCategory = c.category ?? inferCategory(c.latinName);
     if (candidateCategory) setCategory(candidateCategory);
-    const profile = plant ? undefined : matchProfile({ ...c, category: candidateCategory });
-    setProfileKey(profile && profile.category === (candidateCategory ?? category) ? profile.key : undefined);
-    setShowSuggestions(false);
     setTypedName(null);
     resetLookup();
   }
 
   const noMatch = lookedUp !== null && lookedUp === query && candidates.length === 0 && !looking && !lookupError;
   // Ingen oppslagsknapp rett etter at et forslag er valgt; den kommer tilbake når du skriver videre.
-  const canLookup = query.length >= 3 && !profileKey && candidates.length === 0 && !noMatch && (typedName !== null || !!plant);
+  const canLookup = query.length >= 3 && candidates.length === 0 && !noMatch && (typedName !== null || !!plant);
 
   async function save() {
     if (!name.trim() || saving) return;
@@ -279,7 +260,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
           updatedAt: now,
         };
         await db.plants.put(updated);
-        if (plant.category !== category) await resetPlantTasks(plant.id);
         if (photoBlobs) await db.photos.add({ id: newId(), plantId: plant.id, blob: photoBlobs[0], thumb: photoBlobs[1], takenAt: now });
         onSaved?.(updated);
       } else {
@@ -293,16 +273,11 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
           quantity: total >= 2 ? total : undefined,
           beds: beds.length > 0 ? beds : undefined,
           notes: notes.trim() || undefined,
-          profileKey,
           createdAt: now,
           updatedAt: now,
         };
-        const profile = findProfile(profileKey);
-        await db.transaction("rw", [db.plants, db.rules, db.photos], async () => {
+        await db.transaction("rw", [db.plants, db.photos], async () => {
           await db.plants.add(created);
-          if (profile && profile.category === category) {
-            await db.rules.bulkAdd(rulesFromProfile(profile, created.id, now, newId));
-          }
           if (photoBlobs) await db.photos.add({ id: newId(), plantId: created.id, blob: photoBlobs[0], thumb: photoBlobs[1], takenAt: now });
         });
         onSaved?.(created);
@@ -323,7 +298,7 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
               ? "Oppdater informasjonen om planten."
               : transport
                 ? "Skriv navnet slik du husker det, så foreslår vi planten med latinsk navn, sort og kategori."
-                : "Begynn å skrive navnet, så foreslår vi kjente planter med ferdig stell-kalender."}
+                : "Skriv navnet slik du husker det, så finner vi planten i Artsdatabanken."}
           </SheetDescription>
         </SheetHeader>
 
@@ -347,11 +322,8 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
                 onChange={(e) => {
                   setName(e.target.value);
                   setTypedName(e.target.value);
-                  setShowSuggestions(true);
-                  if (profileKey) setProfileKey(undefined);
                   resetLookup();
                 }}
-                onFocus={() => setShowSuggestions(true)}
                 placeholder="F.eks. Bøkehekk"
                 className="h-11 flex-1 rounded-lg"
                 required
@@ -431,22 +403,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
                   ))}
                 </ul>
                 <p className="mt-1.5 text-[11px] text-amber-900/80">Trykk for å åpne planten. Du kan fortsatt legge til en ny med samme navn.</p>
-              </div>
-            )}
-
-            {suggestions.length > 0 && (
-              <div>
-                <p className="mb-1 px-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Kjente planter med stell-kalender</p>
-                <ul className="overflow-hidden rounded-xl border border-border bg-card">
-                  {suggestions.map((s) => (
-                    <li key={s.key} className="border-b border-border last:border-b-0">
-                      <button type="button" onClick={() => applyProfile(s)} className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
-                        <span className="font-medium">{s.name}</span>
-                        <span className="truncate text-xs text-muted-foreground italic">{s.latinName}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
 
@@ -646,12 +602,6 @@ function PlantFormBody({ plant, initial, onSaved, onOpenChange }: Omit<Props, "o
           <Field label="Notater" htmlFor="plant-notes">
             <Textarea id="plant-notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Hvor kjøpt, spesielle hensyn ..." className="resize-none rounded-lg text-base" />
           </Field>
-
-          {profileKey && !plant && (
-            <p className="rounded-lg bg-accent px-3 py-2 text-xs text-accent-foreground">
-              Stell-kalender for {findProfile(profileKey)?.name} legges inn automatisk.
-            </p>
-          )}
 
           <Button type="submit" size="lg" className="h-12 rounded-xl text-base" disabled={!name.trim() || saving}>
             {plant ? "Lagre endringer" : "Legg til plante"}

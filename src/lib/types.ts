@@ -61,16 +61,10 @@ export interface Plant {
   position?: Point;
   /** Plassert som rekke (f.eks. hekk): linje med flere punkter, i meter. */
   line?: Point[];
-  /** Nøkkel til planteprofil (stell-mal) hvis planten ble lagt til fra forslagslisten. */
-  profileKey?: string;
   /** Plantefakta fra KI-leverandøren (se plant-facts.ts). Står planten i src/data/stauder.json, går verdiene derfra foran. */
   facts?: PlantFacts;
   /** Versjonen av faktaoppslaget som ga `facts`. Eldre versjoner slås opp på nytt. */
   factsVersion?: number;
-  /** Satt når deleregelen er tilpasset stauden. Gjøres bare én gang. */
-  factsChecked?: boolean;
-  /** Satt når KI-leverandøren har vurdert kategoriens standardoppgaver for akkurat denne planten. Gjøres én gang per kategori. */
-  tasksChecked?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -178,36 +172,6 @@ export interface MapBackground {
   opacity: number;
 }
 
-export type RuleScope = "plant" | "category" | "garden";
-export type RuleSource = "standard" | "egen" | "claude" | "ki";
-
-export interface CareRule {
-  id: string;
-  /** Stabil nøkkel. En planteregel med samme nøkkel som en kategoriregel overstyrer den for planten. */
-  key?: string;
-  title: string;
-  description?: string;
-  /** Måneder (1-12) oppgaven skal gjøres i. */
-  months: number[];
-  /** Gjentas med så mange års mellomrom i stedet for hvert år, regnet fra plantens alder (f.eks. deling av stauder hvert 3. år). */
-  everyYears?: number;
-  scope: RuleScope;
-  plantId?: string;
-  category?: PlantCategory;
-  source: RuleSource;
-  enabled: boolean;
-  createdAt: number;
-}
-
-export interface TaskCompletion {
-  id: string;
-  ruleId: string;
-  plantId?: string;
-  year: number;
-  month: number;
-  doneAt: number;
-}
-
 export interface Settings {
   id: "settings";
   gardenName: string;
@@ -215,7 +179,6 @@ export interface Settings {
   climateZone?: string;
   mapWidth: number;
   mapHeight: number;
-  seededRules?: boolean;
   /** KI-leverandør med OpenAI-kompatibelt API (Gemini, Groq, OpenRouter ...). Nøkkelen lagres bare på denne enheten. */
   llmBaseUrl?: string;
   llmApiKey?: string;

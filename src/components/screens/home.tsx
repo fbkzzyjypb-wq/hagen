@@ -4,9 +4,8 @@ import { EMPTY } from "@/lib/hooks";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Map as MapIcon, ChevronRight, Camera, Sprout, Settings } from "lucide-react";
+import { Plus, Map as MapIcon, Camera, Sprout, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { GardenPreview } from "@/components/garden-preview";
 import { Page, Section } from "@/components/page";
@@ -15,8 +14,7 @@ import { PlantForm } from "@/components/plant-form";
 import { BlobImage } from "@/components/blob-image";
 import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
-import { tasksForMonth } from "@/lib/tasks";
-import { currentMonth, currentYear, monthName, formatRelative } from "@/lib/dates";
+import { formatRelative } from "@/lib/dates";
 import { isPlaced } from "@/lib/geometry";
 import { bedsOf } from "@/lib/beds";
 import { plantTitle } from "@/lib/types";
@@ -24,16 +22,12 @@ import { plantTitle } from "@/lib/types";
 export function HomeScreen() {
   const settings = useSettings();
   const plants = useLiveQuery(() => db.plants.toArray(), []) ?? EMPTY;
-  const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
   const recentPhotos = useLiveQuery(() => db.photos.orderBy("takenAt").reverse().limit(8).toArray(), []) ?? EMPTY;
   const photoCount = useLiveQuery(() => db.photos.count(), []) ?? 0;
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
   const bedCount = useMemo(() => bedsOf(areas).length, [areas]);
   const [addOpen, setAddOpen] = useState(false);
 
-  const month = currentMonth();
-  const year = currentYear();
-  const tasks = useMemo(() => tasksForMonth(month, year, rules, plants), [month, year, rules, plants]);
   const plantById = useMemo(() => new Map(plants.map((p) => [p.id, p])), [plants]);
   const onMap = plants.filter(isPlaced).length;
 
@@ -57,21 +51,7 @@ export function HomeScreen() {
             <GardenPreview plants={plants} width={settings.mapWidth} height={settings.mapHeight} />
           </div>
         )}
-        <Card className="overflow-hidden border-0 bg-primary text-primary-foreground ring-0 [--card-spacing:--spacing(5)]">
-          <div className="flex items-start justify-between px-(--card-spacing)">
-            <div>
-              <p className="text-sm font-medium text-primary-foreground/80">Oppgaver i hagen · {monthName(month)}</p>
-              <p className="mt-0.5 font-heading text-3xl font-semibold tracking-tight">
-                {tasks.length === 0 ? "Ingenting planlagt" : `${tasks.length} forslag`}
-              </p>
-            </div>
-            <Link href="/oppgaver/" className="mt-1 flex items-center gap-0.5 text-sm font-medium text-primary-foreground/90">
-              Alle <ChevronRight className="size-4" />
-            </Link>
-          </div>
-        </Card>
-
-        <div className={`mt-4 grid gap-2 ${settings.showMap ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div className={`grid gap-2 ${settings.showMap ? "grid-cols-3" : "grid-cols-2"}`}>
           <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" onClick={() => setAddOpen(true)}>
             <Plus className="size-5 text-primary" />
             <span className="text-xs">Ny plante</span>
@@ -126,7 +106,7 @@ export function HomeScreen() {
                 <Sprout className="size-6" />
               </span>
               <p className="font-medium">Kom i gang</p>
-              <p className="mt-1 text-sm text-muted-foreground">Legg inn plantene du har i hagen, så får du en stell-kalender tilpasset dem.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Legg inn plantene du har i hagen, så har du oversikt over dem med bilder og fakta.</p>
               <Button className="mt-4 h-11 rounded-xl" onClick={() => setAddOpen(true)}>
                 <Plus data-icon="inline-start" /> Legg til første plante
               </Button>

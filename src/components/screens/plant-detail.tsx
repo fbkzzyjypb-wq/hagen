@@ -1,29 +1,26 @@
 "use client";
 
 import { EMPTY } from "@/lib/hooks";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, Pencil, MapPin, Plus, Trash2, Images, CalendarDays, FileText, Sprout } from "lucide-react";
+import { ArrowLeft, Pencil, MapPin, Trash2, Images, FileText, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/page-header";
 import { Page, EmptyState } from "@/components/page";
 import { PlantForm } from "@/components/plant-form";
-import { RuleForm } from "@/components/rule-form";
 import { PhotoCapture } from "@/components/photo-capture";
 import { BlobImage } from "@/components/blob-image";
 import { AskClaudeButton } from "@/components/ask-claude";
 import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
 import { quantityInBed } from "@/lib/beds";
-import { nextDueYear, rulesForPlant } from "@/lib/tasks";
-import { categoryInfo, MONTHS_NB_SHORT, plantTitle, TOXICITY_LABELS, type CareRule, type DroughtTolerance, type Photo, type Plant, type PropagationMethod } from "@/lib/types";
-import { currentYear, formatDate } from "@/lib/dates";
+import { categoryInfo, MONTHS_NB_SHORT, plantTitle, TOXICITY_LABELS, type DroughtTolerance, type Photo, type Plant, type PropagationMethod } from "@/lib/types";
+import { formatDate } from "@/lib/dates";
 import { isPlaced, polylineLength } from "@/lib/geometry";
 import { factsFor } from "@/lib/plant-facts";
 import { capitalize } from "@/lib/plant-lookup";
@@ -33,16 +30,11 @@ export function PlantDetailScreen({ id }: { id: string }) {
   const router = useRouter();
   const plant = useLiveQuery(() => db.plants.get(id), [id]);
   const photos = useLiveQuery(() => db.photos.where("plantId").equals(id).reverse().sortBy("takenAt"), [id]) ?? EMPTY;
-  const rules = useLiveQuery(() => db.rules.toArray(), []) ?? EMPTY;
   const areas = useLiveQuery(() => db.areas.toArray(), []) ?? EMPTY;
   const settings = useSettings();
   const [editOpen, setEditOpen] = useState(false);
-  const [ruleOpen, setRuleOpen] = useState(false);
-  const [editRule, setEditRule] = useState<CareRule | undefined>();
   const [viewPhoto, setViewPhoto] = useState<Photo | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-
-  const plantRules = useMemo(() => (plant ? rulesForPlant(plant, rules) : []), [plant, rules]);
 
   if (plant === undefined) return <div className="p-8 text-center text-sm text-muted-foreground">Laster ...</div>;
   if (plant === null) {
@@ -56,11 +48,8 @@ export function PlantDetailScreen({ id }: { id: string }) {
   const info = categoryInfo(plant.category);
 
   async function deletePlant() {
-    await db.transaction("rw", [db.plants, db.photos, db.rules, db.completions], async () => {
+    await db.transaction("rw", [db.plants, db.photos], async () => {
       await db.photos.where("plantId").equals(plant!.id).delete();
-      const ruleIds = await db.rules.where("plantId").equals(plant!.id).primaryKeys();
-      await db.rules.where("plantId").equals(plant!.id).delete();
-      for (const rid of ruleIds) await db.completions.where("ruleId").equals(rid).delete();
       await db.plants.delete(plant!.id);
     });
     router.replace("/planter/");
@@ -128,9 +117,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
             <TabsTrigger value="bilder" className="flex-1">
               <Images className="size-4" /> Bilder
             </TabsTrigger>
-            <TabsTrigger value="stell" className="flex-1">
-              <CalendarDays className="size-4" /> Stell
-            </TabsTrigger>
             <TabsTrigger value="info" className="flex-1">
               <FileText className="size-4" /> Info
             </TabsTrigger>
@@ -155,78 +141,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
                 ))}
               </div>
             )}
-          </TabsContent>
-
-          <TabsContent value="stell" className="mt-3">
-            <Card className="py-0">
-              <ul className="divide-y divide-border">
-                {plantRules.map((r) => (
-                  <li key={r.id} className="flex items-start gap-3 px-4 py-3">
-                    <div className="min-w-0 flex-1">
-                      <button
-                        type="button"
-                        className="text-left"
-                        onClick={() => {
-                          if (r.scope === "plant") {
-                            setEditRule(r);
-                            setRuleOpen(true);
-                          }
-                        }}
-                      >
-                        <p className={cn("text-[15px] font-medium", !r.enabled && "text-muted-foreground line-through")}>{r.title}</p>
-                      </button>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {r.months.map((m) => (
-                          <span key={m} className="rounded-md bg-accent px-1.5 py-0.5 text-[11px] font-medium text-accent-foreground capitalize">
-                            {MONTHS_NB_SHORT[m - 1]}
-                          </span>
-                        ))}
-                        {r.enabled && r.everyYears && (
-                          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                            Hvert {r.everyYears}. år · neste {nextDueYear(r, plant, currentYear())}
-                          </span>
-                        )}
-                        {r.scope === "category" && <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">Alle {info.label.toLowerCase()}</span>}
-                      </div>
-                      {r.description && <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{r.description}</p>}
-                    </div>
-                    <Switch
-                      checked={r.enabled}
-                      onCheckedChange={async (v) => {
-                        if (r.scope === "plant") {
-                          await db.rules.update(r.id, { enabled: v });
-                        } else {
-                          // Skru av en kategoriregel for bare denne planten ved å lage en deaktivert planteregel med samme nøkkel.
-                          await db.rules.add({ ...r, id: crypto.randomUUID(), scope: "plant", plantId: plant.id, category: undefined, enabled: v, source: "egen", createdAt: Date.now() });
-                        }
-                      }}
-                      aria-label={`Slå ${r.enabled ? "av" : "på"} ${r.title}`}
-                      className="mt-1"
-                    />
-                  </li>
-                ))}
-              </ul>
-              <div className="flex gap-2 border-t border-border p-3">
-                <Button
-                  variant="outline"
-                  className="h-10 flex-1 rounded-xl"
-                  onClick={() => {
-                    setEditRule(undefined);
-                    setRuleOpen(true);
-                  }}
-                >
-                  <Plus data-icon="inline-start" /> Egen oppgave
-                </Button>
-                <AskClaudeButton
-                  focusPlant={plant}
-                  variant="outline"
-                  size="default"
-                  className="h-10 flex-1 rounded-xl"
-                  label="Foreslå stell"
-                  initialQuestion={`Lag en stell-kalender for ${plant.name.toLowerCase()} måned for måned, med beskjæring, gjødsling, formering og vinterbeskyttelse.`}
-                />
-              </div>
-            </Card>
           </TabsContent>
 
           <TabsContent value="info" className="mt-3">
@@ -256,7 +170,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
       </Page>
 
       <PlantForm open={editOpen} onOpenChange={setEditOpen} plant={plant} />
-      <RuleForm open={ruleOpen} onOpenChange={setRuleOpen} plant={plant} rule={editRule} />
 
       <Dialog open={!!viewPhoto} onOpenChange={(o) => !o && setViewPhoto(null)}>
         <DialogContent className="max-w-[calc(100%-1.5rem)] gap-3 p-2 sm:max-w-lg">
@@ -283,7 +196,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Slette {plantTitle(plant)}?</DialogTitle>
-            <DialogDescription>Planten, {photos.length} bilder og egne oppgaver slettes. Dette kan ikke angres.</DialogDescription>
+            <DialogDescription>Planten og {photos.length} bilder slettes. Dette kan ikke angres.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>

@@ -134,7 +134,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
             <EmptyState
               icon={<Sprout className="size-6" />}
               title={activeBed ? "Ingen planter her ennå" : "Ingen planter enda"}
-              description={activeBed ? "Legg til plantene som står her, eller velg blant plantene du allerede har lagt inn." : "Legg inn plantene i hagen din. Kjente planter får ferdig stell-kalender."}
+              description={activeBed ? "Legg til plantene som står her, eller velg blant plantene du allerede har lagt inn." : "Legg inn plantene i hagen din, så har du oversikt over dem med bilder og fakta."}
               action={
                 <div className="flex flex-col gap-2">
                   <Button className="h-11 rounded-xl" onClick={() => setAddInitial(activeBed ? { beds: [{ areaId: activeBed.id, quantity: 1 }] } : {})}>

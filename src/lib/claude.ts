@@ -1,5 +1,4 @@
 import type { Area, Plant, Settings } from "./types";
-import type { TaskItem } from "./tasks";
 import { areaInfo, categoryInfo } from "./types";
 import { monthName } from "./dates";
 import { bedsOf, inBed, quantityInBed } from "./beds";
@@ -16,13 +15,12 @@ type Context = {
   plants: Plant[];
   /** Områder; de som er bed, brukes til å gruppere plantene. */
   areas?: Area[];
-  monthTasks?: TaskItem[];
   focusPlant?: Plant;
 };
 
 /** Kontekst om hagen, brukt både i lenken til claude.ai og som systemkontekst i chatten. */
 export function buildGardenContext(ctx: Context): string {
-  const { settings, plants, areas, monthTasks, focusPlant } = ctx;
+  const { settings, plants, areas, focusPlant } = ctx;
   const now = new Date();
   const lines: string[] = [];
   lines.push("Om hagen:");
@@ -64,11 +62,6 @@ export function buildGardenContext(ctx: Context): string {
     lines.push(...bedLines);
   }
 
-  if (monthTasks && monthTasks.length > 0) {
-    lines.push("");
-    lines.push("Forslag til oppgaver denne måneden:");
-    for (const t of monthTasks.slice(0, 15)) lines.push(`- ${t.rule.title}`);
-  }
   return lines.join("\n");
 }
 

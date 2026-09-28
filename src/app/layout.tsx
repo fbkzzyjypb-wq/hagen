@@ -13,7 +13,7 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "Hagen",
-  description: "Oversikt over hagen: planter, kart, bilder og oppgaver gjennom året.",
+  description: "Oversikt over hagen: planter, plasseringer, kart og bilder gjennom året.",
   applicationName: "Hagen",
   appleWebApp: {
     capable: true,

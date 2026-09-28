@@ -43,28 +43,3 @@ export function NativeSelect({ className, children, ...props }: React.SelectHTML
     </div>
   );
 }
-
-export function MonthPicker({ value, onChange }: { value: number[]; onChange: (months: number[]) => void }) {
-  const labels = ["Jan", "Feb", "Mar", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Des"];
-  return (
-    <div className="grid grid-cols-6 gap-1.5">
-      {labels.map((l, i) => {
-        const m = i + 1;
-        const on = value.includes(m);
-        return (
-          <button
-            key={m}
-            type="button"
-            onClick={() => onChange(on ? value.filter((x) => x !== m) : [...value, m].sort((a, b) => a - b))}
-            className={cn(
-              "h-9 rounded-lg border text-sm font-medium transition-colors",
-              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:bg-muted"
-            )}
-          >
-            {l}
-          </button>
-        );
-      })}
-    </div>
-  );
-}

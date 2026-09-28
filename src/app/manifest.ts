@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Hagen",
     short_name: "Hagen",
-    description: "Oversikt over hagen: planter, kart, bilder og oppgaver gjennom året.",
+    description: "Oversikt over hagen: planter, plasseringer, kart og bilder gjennom året.",
     start_url: `${BASE_PATH}/`,
     scope: `${BASE_PATH}/`,
     id: `${BASE_PATH}/`,

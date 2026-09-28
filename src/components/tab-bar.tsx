@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Sprout, Map, CalendarCheck, Sparkles } from "lucide-react";
+import { Home, Sprout, Map, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import { useSettings } from "@/lib/settings";
 
@@ -10,7 +10,6 @@ const tabs = [
   { href: "/", label: "Hjem", icon: Home },
   { href: "/planter/", label: "Planter", icon: Sprout },
   { href: "/kart/", label: "Kart", icon: Map },
-  { href: "/oppgaver/", label: "Oppgaver", icon: CalendarCheck },
   { href: "/assistent/", label: "Assistent", icon: Sparkles },
 ] as const;
 

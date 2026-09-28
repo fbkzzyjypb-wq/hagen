@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { Area, Asset, CareRule, MapBackground, Photo, Plant, Settings, TaskCompletion } from "./types";
+import type { Area, Asset, MapBackground, Photo, Plant, Settings } from "./types";
 
 type ExportedPhoto = Omit<Photo, "blob" | "thumb"> & { blob: string; thumb: string; type: string };
 type ExportedBackground = Omit<MapBackground, "blob"> & { blob: string; type: string };
@@ -11,8 +11,6 @@ export interface ExportFile {
   exportedAt: number;
   plants: Plant[];
   areas: Area[];
-  rules: CareRule[];
-  completions: TaskCompletion[];
   settings?: Settings;
   photos: ExportedPhoto[];
   background?: ExportedBackground;
@@ -36,11 +34,9 @@ function base64ToBlob(b64: string, type: string): Blob {
 }
 
 export async function exportAll(): Promise<Blob> {
-  const [plants, areas, rules, completions, settings, photos, background, assets] = await Promise.all([
+  const [plants, areas, settings, photos, background, assets] = await Promise.all([
     db.plants.toArray(),
     db.areas.toArray(),
-    db.rules.toArray(),
-    db.completions.toArray(),
     db.settings.get("settings"),
     db.photos.toArray(),
     db.mapBackground.get("bg"),
@@ -65,8 +61,6 @@ export async function exportAll(): Promise<Blob> {
     exportedAt: Date.now(),
     plants,
     areas,
-    rules,
-    completions,
     settings,
     photos: exportedPhotos,
     background: background ? { ...background, type: background.blob.type || "image/jpeg", blob: await blobToBase64(background.blob) } : undefined,
@@ -86,8 +80,8 @@ export async function importAll(file: Blob): Promise<{ plants: number; photos: n
     blob: base64ToBlob(p.blob, p.type),
     thumb: base64ToBlob(p.thumb, p.type),
   }));
-  await db.transaction("rw", [db.plants, db.areas, db.rules, db.completions, db.settings, db.photos, db.mapBackground, db.assets], async () => {
-    await Promise.all([db.plants.clear(), db.areas.clear(), db.rules.clear(), db.completions.clear(), db.photos.clear(), db.mapBackground.clear(), db.assets.clear()]);
+  await db.transaction("rw", [db.plants, db.areas, db.settings, db.photos, db.mapBackground, db.assets], async () => {
+    await Promise.all([db.plants.clear(), db.areas.clear(), db.photos.clear(), db.mapBackground.clear(), db.assets.clear()]);
     for (const a of data.assets ?? []) {
       const { type, blob, ...rest } = a;
       await db.assets.put({ ...rest, blob: base64ToBlob(blob, type) });
@@ -98,8 +92,6 @@ export async function importAll(file: Blob): Promise<{ plants: number; photos: n
     }
     await db.plants.bulkPut(data.plants);
     await db.areas.bulkPut(data.areas);
-    await db.rules.bulkPut(data.rules);
-    await db.completions.bulkPut(data.completions);
     await db.photos.bulkPut(photos);
     if (data.settings) await db.settings.put({ ...data.settings, id: "settings" });
   });
