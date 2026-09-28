@@ -174,6 +174,8 @@ export interface Identification {
   photoCount: number;
   source: "plantnet" | "ki";
   candidates: PlantCandidate[];
+  /** Plantefakta for det lagrede forslaget, slått opp hos KI-leverandøren etter lagring. Samme form som på en plante i hagen. */
+  facts?: PlantFacts;
   /** Planten som ble lagt til i hagen fra denne identifiseringen, hvis noen. */
   plantId?: string;
 }

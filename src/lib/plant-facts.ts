@@ -1,7 +1,7 @@
 import data from "@/data/stauder.json";
 import { db } from "./db";
 import { completeText, resolveTransport, type ChatTransport } from "./llm-client";
-import type { PlantCandidate } from "./plant-lookup";
+import { inferCategory, type PlantCandidate } from "./plant-lookup";
 import { categoryInfo, FACT_TEXT_FIELDS, plantTitle, type DroughtTolerance, type Light, type Plant, type PlantFacts, type PropagationMethod, type Settings, type ToxicityLevel } from "./types";
 
 /**
@@ -42,8 +42,8 @@ export function findListedFacts(plant: Pick<Plant, "name" | "latinName">): Plant
   return LISTED.find((p) => p.names.some((n) => n.toLowerCase() === name));
 }
 
-/** Fakta for planten: svaret fra KI-leverandøren, med verdiene fra staudelisten foran når planten står der. */
-export function factsFor(plant: Plant): { facts: PlantFacts; source: "liste" | "ki" | "begge" } | undefined {
+/** Fakta for planten (eller en lagret identifisering): KI-svaret, med verdiene fra staudelisten foran når planten står der. */
+export function factsFor(plant: Pick<Plant, "name" | "latinName" | "facts">): { facts: PlantFacts; source: "liste" | "ki" | "begge" } | undefined {
   const listed = findListedFacts(plant);
   if (listed && plant.facts) return { facts: { ...plant.facts, ...listed }, source: "begge" };
   if (listed) return { facts: listed, source: "liste" };
@@ -163,13 +163,37 @@ export function parseFacts(raw: string): PlantFacts | null {
   };
 }
 
-async function askFacts(transport: ChatTransport, settings: Settings, plant: Plant): Promise<PlantFacts | null> {
+/** Det oppslaget trenger å vite om planten. */
+type FactsSubject = Pick<Plant, "name" | "variety" | "latinName" | "category">;
+
+async function askFacts(transport: ChatTransport, settings: Settings, plant: FactsSubject): Promise<PlantFacts | null> {
   const where = [settings.location, settings.climateZone && `klimasone ${settings.climateZone}`].filter(Boolean).join(", ");
   const content = [`${plantTitle(plant)}${plant.latinName ? ` (${plant.latinName})` : ""}`, `Kategori: ${categoryInfo(plant.category).label}`, where && `Hagen ligger i: ${where}`]
     .filter(Boolean)
     .join("\n");
   const raw = await completeText({ transport, system: SYSTEM, messages: [{ role: "user", content }], maxTokens: 2500 });
   return parseFacts(raw);
+}
+
+/**
+ * Slår opp fulle plantefakta for en lagret identifisering som mangler dem, så oppføringen viser det samme som en plante
+ * i hagen. Stille når KI-leverandør mangler eller svaret ikke lot seg tolke: da prøves det igjen neste gang den åpnes.
+ */
+export async function ensureIdentificationFacts(id: string): Promise<void> {
+  const record = await db.identifications.get(id);
+  const chosen = record?.candidates[0];
+  if (!record || !chosen || record.facts) return;
+  const settings = await db.settings.get("settings");
+  const transport = settings && navigator.onLine ? resolveTransport(settings) : null;
+  if (!settings || !transport) return;
+  const facts = await askFacts(transport, settings, { name: chosen.name, variety: chosen.variety, latinName: chosen.latinName, category: chosen.category ?? inferCategory(chosen.latinName) ?? "annet" });
+  if (!facts) return;
+  await db.transaction("rw", [db.identifications], async () => {
+    // Er forslaget byttet mens vi ventet på svaret, gjelder ikke svaret lenger.
+    const current = await db.identifications.get(id);
+    if (!current || current.candidates[0]?.latinName !== chosen.latinName) return;
+    await db.identifications.update(id, { facts });
+  });
 }
 
 let running = false;

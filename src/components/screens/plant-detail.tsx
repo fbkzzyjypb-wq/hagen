@@ -16,14 +16,13 @@ import { PlantForm } from "@/components/plant-form";
 import { PhotoCapture } from "@/components/photo-capture";
 import { BlobImage } from "@/components/blob-image";
 import { AskClaudeButton } from "@/components/ask-claude";
+import { FactsCard, Row } from "@/components/plant-facts-card";
 import { db } from "@/lib/db";
 import { useSettings } from "@/lib/settings";
 import { quantityInBed } from "@/lib/beds";
-import { categoryInfo, MONTHS_NB_SHORT, plantTitle, TOXICITY_LABELS, type DroughtTolerance, type Photo, type Plant, type PropagationMethod } from "@/lib/types";
+import { categoryInfo, plantTitle, type Photo } from "@/lib/types";
 import { formatDate } from "@/lib/dates";
 import { isPlaced, polylineLength } from "@/lib/geometry";
-import { factsFor } from "@/lib/plant-facts";
-import { capitalize } from "@/lib/plant-lookup";
 import { cn } from "cn";
 
 export function PlantDetailScreen({ id }: { id: string }) {
@@ -162,7 +161,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
                 </div>
               )}
             </Card>
-            <FactsCard plant={plant} />
+            <FactsCard subject={plant} className="mt-3" />
             <Button variant="destructive" className="mt-4 h-11 w-full rounded-xl" onClick={() => setDeleteOpen(true)}>
               <Trash2 data-icon="inline-start" /> Slett planten
             </Button>
@@ -210,95 +209,6 @@ export function PlantDetailScreen({ id }: { id: string }) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-const DROUGHT_LABELS: Record<DroughtTolerance, string> = { lav: "Tåler tørke dårlig", middel: "Tåler noe tørke", god: "Tåler tørke godt" };
-const METHOD_LABELS: Record<PropagationMethod, string> = { deling: "Deling", stiklinger: "Stiklinger", fro: "Frø", avleggere: "Avleggere", poding: "Poding", ingen: "Bør stå i fred" };
-const SOURCE_LABELS = {
-  liste: "Fra appens staudeliste. Verdiene er veiledende.",
-  ki: "Fra KI-leverandøren. Kan inneholde feil.",
-  begge: "Fra appens staudeliste, utfylt av KI-leverandøren. Kan inneholde feil.",
-};
-
-/** «40–60 cm», og meter for trær og store busker: «3–8 m». */
-function sizeRange([from, to]: [number, number]): string {
-  const meters = to >= 200;
-  const n = (v: number) => (meters ? (v / 100).toLocaleString("nb-NO", { maximumFractionDigits: 1 }) : String(v));
-  return `${from === to ? n(from) : `${n(from)}–${n(to)}`} ${meters ? "m" : "cm"}`;
-}
-
-/** Plantefakta fra staudelisten og KI-leverandøren. Vises ikke når planten ikke er slått opp. */
-function FactsCard({ plant }: { plant: Plant }) {
-  const found = factsFor(plant);
-  if (!found) return null;
-  const { facts, source } = found;
-  const { method, everyYears, months = [], note } = facts.propagation;
-  const toxic = facts.toxicity?.level === "giftig" || facts.toxicity?.level === "meget";
-  // Bare stauder «bør stå i fred». For andre planter betyr ingen at de vanligvis kjøpes ferdige.
-  const methodLabel = method === "ingen" && plant.category !== "staude" ? "Formeres sjelden i hagen" : METHOD_LABELS[method];
-  const propagation = [method === "deling" && everyYears ? `Deling hvert ${everyYears}. år` : methodLabel, months.map((m) => MONTHS_NB_SHORT[m - 1]).join(", ")]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <Card className="mt-3 gap-3 px-4">
-      <p className="text-sm font-semibold">Plantefakta</p>
-      {facts.description && <p className="text-sm">{facts.description}</p>}
-      {facts.type && <Row label="Type" value={facts.type} />}
-      {facts.family && <Row label="Familie" value={facts.family} />}
-      {facts.origin && <Row label="Opprinnelse" value={facts.origin} />}
-      {facts.hardiness && <Row label="Herdighet" value={facts.hardiness} />}
-      <Row label="Lys" value={capitalize(facts.light.join(", "))} />
-      <Row label="Størrelse" value={`${sizeRange(facts.height)} høy${facts.spread ? `, ${sizeRange(facts.spread)} bred` : ""}`} />
-      <Row label="Tørke" value={DROUGHT_LABELS[facts.droughtTolerance]} />
-      {facts.soil && <Block label="Jord" value={facts.soil} />}
-      {facts.watering && <Block label="Vanning" value={facts.watering} />}
-      {facts.fertilizing && <Block label="Gjødsling" value={facts.fertilizing} />}
-      {facts.bloom && <Block label="Blomstring" value={facts.bloom} />}
-      {facts.pruning && <Block label="Beskjæring" value={facts.pruning} />}
-      {facts.planting && <Block label="Såing og planting" value={facts.planting} />}
-      {facts.harvest && <Block label="Høsting" value={facts.harvest} />}
-      {facts.winterCare && <Block label="Overvintring" value={facts.winterCare} />}
-      {(method !== "ingen" || note) && <Block label="Formering" value={propagation} note={note} />}
-      {facts.pests && <Block label="Sykdommer og skadedyr" value={facts.pests} />}
-      {facts.wildlife && <Block label="Dyreliv" value={facts.wildlife} />}
-      {facts.edible && <Block label="Spiselig" value={facts.edible} />}
-      {facts.tips && <Block label="Verdt å vite" value={facts.tips} />}
-      {facts.toxicity && (
-        <Block label="Giftighet" value={TOXICITY_LABELS[facts.toxicity.level]} note={facts.toxicity.note} valueClassName={toxic ? "font-medium text-destructive" : undefined} />
-      )}
-      <p className="text-xs text-muted-foreground">
-        {SOURCE_LABELS[source]}
-        {facts.toxicity && facts.toxicity.level !== "ufarlig" && (
-          <>
-            {" "}Har noen fått i seg planten, ring Giftinformasjonen på{" "}
-            <a href="tel:22591300" className="font-medium text-primary underline-offset-2 hover:underline">
-              22 59 13 00
-            </a>
-            .
-          </>
-        )}
-      </p>
-    </Card>
-  );
-}
-
-function Block({ label, value, note, valueClassName }: { label: string; value: string; note?: string; valueClassName?: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 text-sm", valueClassName)}>{value}</p>
-      {note && <p className="mt-0.5 text-sm text-muted-foreground">{note}</p>}
-    </div>
-  );
-}
-
-function Row({ label, value, italic }: { label: string; value: string; italic?: boolean }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className={cn("text-right text-sm", italic && "italic")}>{value}</p>
-    </div>
   );
 }
 

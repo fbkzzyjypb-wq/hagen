@@ -14,6 +14,7 @@ import { Field, NativeSelect } from "@/components/fields";
 import { BlobImage } from "@/components/blob-image";
 import { SimpleMarkdown } from "@/components/simple-markdown";
 import { PlantForm, type PlantFormInitial } from "@/components/plant-form";
+import { FactsCard } from "@/components/plant-facts-card";
 import { assistantHref } from "@/components/ask-claude";
 import { cn } from "cn";
 import { db } from "@/lib/db";
@@ -24,7 +25,7 @@ import { resolveTransport } from "@/lib/llm-client";
 import { compressImage } from "@/lib/images";
 import { formatDate, formatRelative } from "@/lib/dates";
 import { enrichCandidates, inferCategory, type CandidateImage, type PlantCandidate } from "@/lib/plant-lookup";
-import { hardyIn, withListedFacts } from "@/lib/plant-facts";
+import { ensureIdentificationFacts, hardyIn, withListedFacts } from "@/lib/plant-facts";
 import { diagnosePlant, identifyPlantPhotos, identifyPlantWithVision, MAX_IDENTIFY_PHOTOS, PLANT_ORGANS, type PlantOrgan } from "@/lib/plant-id";
 import { TAB_RESELECT_EVENT } from "@/components/tab-bar";
 import { categoryInfo, LIFECYCLE_LABELS, plantTitle, TOXICITY_LABELS, type CandidateFacts, type Identification, type Plant, type ToxicityLevel } from "@/lib/types";
@@ -92,13 +93,18 @@ export function IdentifyScreen() {
    */
   async function saveChoice(chosen: PlantCandidate) {
     if (!idResult || photos.length === 0) return;
-    if (recordId) {
-      await db.identifications.update(recordId, { candidates: [chosen] });
-      return;
+    let id = recordId;
+    if (id) {
+      // Nytt forslag i samme oppføring: faktaene hørte til det forrige.
+      await db.identifications.update(id, { candidates: [chosen], facts: undefined });
+    } else {
+      const record = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
+      await db.identifications.add(record);
+      id = record.id;
+      setRecordId(id);
     }
-    const record = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
-    await db.identifications.add(record);
-    setRecordId(record.id);
+    // Fulle plantefakta hentes i bakgrunnen, så de ligger klare når oppføringen åpnes.
+    ensureIdentificationFacts(id).catch(() => undefined);
   }
 
   function startAdd(c: PlantCandidate, photoBlob: Blob | null) {
@@ -230,6 +236,7 @@ export function IdentifyScreen() {
 
         {mode === "plante" && viewing ? (
           <RecordView
+            key={viewing.id}
             record={viewing}
             plants={plants}
             zone={settings.climateZone}
@@ -369,7 +376,15 @@ export function IdentifyScreen() {
                     zone={settings.climateZone}
                     assistantLabel={assistantLabel}
                     saved={savedKey !== null && candidateKey(c) === savedKey}
-                    onSave={() => saveChoice(c).catch(() => setError("Kunne ikke lagre identifiseringen. Prøv igjen."))}
+                    onSave={() =>
+                      saveChoice(c)
+                        .then(() => {
+                          // Lagret: tilbake til start, der oppføringen nå ligger øverst i historikken.
+                          reset();
+                          window.scrollTo({ top: 0 });
+                        })
+                        .catch(() => setError("Kunne ikke lagre identifiseringen. Prøv igjen."))
+                    }
                     onAdd={() => startAdd(c, photo)}
                   />
                 ))}
@@ -492,6 +507,27 @@ function RecordView({
 }) {
   const added = record.plantId ? plants.find((p) => p.id === record.plantId) : undefined;
   const chosen = record.candidates[0];
+  const [factsFailed, setFactsFailed] = useState(false);
+  const needFacts = !record.facts && hasTransport;
+  const factsBusy = needFacts && !factsFailed;
+
+  // Mangler faktaene (oppslaget feilet, eller leverandøren kom til senere), prøves det igjen når oppføringen åpnes.
+  useEffect(() => {
+    if (!needFacts || factsFailed) return;
+    let cancelled = false;
+    ensureIdentificationFacts(record.id)
+      .then(() => db.identifications.get(record.id))
+      .then((fresh) => {
+        if (!cancelled && !fresh?.facts) setFactsFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFactsFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [record.id, needFacts, factsFailed]);
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2 px-1">
@@ -515,9 +551,25 @@ function RecordView({
         <>
           <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Lagret som</p>
           <CandidateCard candidate={chosen} plants={plants} zone={zone} assistantLabel={assistantLabel} onAdd={() => onAdd(chosen)} />
+          <FactsCard subject={{ name: chosen.name, latinName: chosen.latinName, category: chosen.category, facts: record.facts }} />
+          {!record.facts && factsBusy && (
+            <p className="inline-flex items-center gap-2 px-1 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Henter plantefakta fra {assistantLabel} ...
+            </p>
+          )}
+          {!record.facts && factsFailed && (
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="text-sm text-muted-foreground">Fikk ikke hentet plantefakta nå.</p>
+              <Button variant="outline" size="sm" className="rounded-lg bg-card" onClick={() => setFactsFailed(false)}>
+                <RefreshCw data-icon="inline-start" /> Prøv igjen
+              </Button>
+            </div>
+          )}
+          {!hasTransport && !record.facts && (
+            <p className="px-1 text-[11px] text-muted-foreground">Med en KI-leverandør (Innstillinger) får oppføringen de samme plantefaktaene som plantene i hagen.</p>
+          )}
         </>
       )}
-      {!hasTransport && chosen && !chosen.facts && <FactsHint />}
       <div className="flex gap-2">
         <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" onClick={onNew}>
           <Camera data-icon="inline-start" /> Ny identifisering
