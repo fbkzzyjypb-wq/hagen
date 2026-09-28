@@ -171,15 +171,28 @@ async function askFacts(transport: ChatTransport, settings: Settings, plant: Fac
   const content = [`${plantTitle(plant)}${plant.latinName ? ` (${plant.latinName})` : ""}`, `Kategori: ${categoryInfo(plant.category).label}`, where && `Hagen ligger i: ${where}`]
     .filter(Boolean)
     .join("\n");
-  const raw = await completeText({ transport, system: SYSTEM, messages: [{ role: "user", content }], maxTokens: 2500 });
+  // Romslig: modeller som tenker før de svarer (Gemini Flash) bruker av samme kvote, og et avkuttet svar gir ugyldig JSON.
+  const raw = await completeText({ transport, system: SYSTEM, messages: [{ role: "user", content }], maxTokens: 4000 });
   return parseFacts(raw);
 }
 
+/** Oppslag som pågår, per oppføring. Lagring og åpning av oppføringen kan be om det samme samtidig, og skal dele ett kall. */
+const inFlight = new Map<string, Promise<void>>();
+
 /**
  * Slår opp fulle plantefakta for en lagret identifisering som mangler dem, så oppføringen viser det samme som en plante
- * i hagen. Stille når KI-leverandør mangler eller svaret ikke lot seg tolke: da prøves det igjen neste gang den åpnes.
+ * i hagen. Stille når KI-leverandør mangler. Kaster med en forklaring når leverandøren feiler eller svaret ikke lot seg
+ * tolke, så skjermen kan vise hva som gikk galt.
  */
-export async function ensureIdentificationFacts(id: string): Promise<void> {
+export function ensureIdentificationFacts(id: string): Promise<void> {
+  const running = inFlight.get(id);
+  if (running) return running;
+  const task = lookupIdentificationFacts(id).finally(() => inFlight.delete(id));
+  inFlight.set(id, task);
+  return task;
+}
+
+async function lookupIdentificationFacts(id: string): Promise<void> {
   const record = await db.identifications.get(id);
   const chosen = record?.candidates[0];
   if (!record || !chosen || record.facts) return;
@@ -187,7 +200,7 @@ export async function ensureIdentificationFacts(id: string): Promise<void> {
   const transport = settings && navigator.onLine ? resolveTransport(settings) : null;
   if (!settings || !transport) return;
   const facts = await askFacts(transport, settings, { name: chosen.name, variety: chosen.variety, latinName: chosen.latinName, category: chosen.category ?? inferCategory(chosen.latinName) ?? "annet" });
-  if (!facts) return;
+  if (!facts) throw new Error(`Svaret fra ${transport.label} lot seg ikke tolke. Prøv igjen.`);
   await db.transaction("rw", [db.identifications], async () => {
     // Er forslaget byttet mens vi ventet på svaret, gjelder ikke svaret lenger.
     const current = await db.identifications.get(id);

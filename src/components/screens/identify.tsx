@@ -507,26 +507,28 @@ function RecordView({
 }) {
   const added = record.plantId ? plants.find((p) => p.id === record.plantId) : undefined;
   const chosen = record.candidates[0];
-  const [factsFailed, setFactsFailed] = useState(false);
+  /** Hvorfor siste oppslag feilet. Null mens det pågår eller har lyktes. */
+  const [factsError, setFactsError] = useState<string | null>(null);
   const needFacts = !record.facts && hasTransport;
-  const factsBusy = needFacts && !factsFailed;
+  const factsBusy = needFacts && factsError === null;
 
   // Mangler faktaene (oppslaget feilet, eller leverandøren kom til senere), prøves det igjen når oppføringen åpnes.
+  // Pågår oppslaget alt fra lagringen, deles det kallet.
   useEffect(() => {
-    if (!needFacts || factsFailed) return;
+    if (!needFacts || factsError !== null) return;
     let cancelled = false;
     ensureIdentificationFacts(record.id)
       .then(() => db.identifications.get(record.id))
       .then((fresh) => {
-        if (!cancelled && !fresh?.facts) setFactsFailed(true);
+        if (!cancelled && !fresh?.facts) setFactsError("Fikk ikke hentet plantefakta nå.");
       })
-      .catch(() => {
-        if (!cancelled) setFactsFailed(true);
+      .catch((err: unknown) => {
+        if (!cancelled) setFactsError(err instanceof Error && err.message ? err.message : "Fikk ikke hentet plantefakta nå.");
       });
     return () => {
       cancelled = true;
     };
-  }, [record.id, needFacts, factsFailed]);
+  }, [record.id, needFacts, factsError]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -557,10 +559,10 @@ function RecordView({
               <Loader2 className="size-4 animate-spin" /> Henter plantefakta fra {assistantLabel} ...
             </p>
           )}
-          {!record.facts && factsFailed && (
-            <div className="flex items-center justify-between gap-3 px-1">
-              <p className="text-sm text-muted-foreground">Fikk ikke hentet plantefakta nå.</p>
-              <Button variant="outline" size="sm" className="rounded-lg bg-card" onClick={() => setFactsFailed(false)}>
+          {!record.facts && factsError !== null && (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-destructive/10 px-3 py-2">
+              <p className="text-sm text-destructive">Plantefakta: {factsError}</p>
+              <Button variant="outline" size="sm" className="shrink-0 rounded-lg bg-card" onClick={() => setFactsError(null)}>
                 <RefreshCw data-icon="inline-start" /> Prøv igjen
               </Button>
             </div>
