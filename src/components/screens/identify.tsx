@@ -644,17 +644,18 @@ const TOXICITY_CLASS: Record<ToxicityLevel, string> = {
   ukjent: "bg-muted text-muted-foreground",
 };
 
-/** Livsløp, herdighet målt mot hagens klimasone, og giftighet. */
+/** Livsløp, herdighet målt mot hagens klimasone, og giftighet. Ettårige lever bare én sommer, så de får ingen herdighet. */
 function FactChips({ facts, zone }: { facts?: CandidateFacts; zone?: string }) {
   if (!facts || (!facts.lifecycle && !facts.hardiness && !facts.toxicity)) return null;
-  const hardy = hardyIn(facts.hardiness, zone);
+  const hardiness = facts.lifecycle === "ettårig" ? undefined : facts.hardiness;
+  const hardy = hardyIn(hardiness, zone);
   return (
     <div className="flex flex-wrap gap-1.5">
       {facts.lifecycle && <Chip>{LIFECYCLE_LABELS[facts.lifecycle]}</Chip>}
-      {facts.hardiness && (
+      {hardiness && (
         <Chip className={hardy === true ? "bg-primary/10 text-primary" : hardy === false ? "bg-destructive/10 text-destructive" : undefined}>
           {hardy === true ? <Check className="size-3" /> : hardy === false ? <X className="size-3" /> : null}
-          {hardy === true ? `Herdig i ${zone} (${facts.hardiness})` : hardy === false ? `Ikke herdig i ${zone} (${facts.hardiness})` : `Herdighet ${facts.hardiness}`}
+          {hardy === true ? `Herdig i ${zone} (${hardiness})` : hardy === false ? `Ikke herdig i ${zone} (${hardiness})` : `Herdighet ${hardiness}`}
         </Chip>
       )}
       {facts.toxicity && <Chip className={TOXICITY_CLASS[facts.toxicity]}>{facts.toxicity === "ukjent" ? "Giftighet ukjent" : TOXICITY_LABELS[facts.toxicity]}</Chip>}

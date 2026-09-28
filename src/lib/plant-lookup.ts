@@ -343,12 +343,14 @@ export async function enrichCandidates(transport: ChatTransport, candidates: Pla
       const tox = clean(o.toxicity).toLowerCase();
       const life = clean(o.lifecycle).toLowerCase();
       const hardiness = clean(o.hardiness).toUpperCase();
+      const lifecycle = c.facts?.lifecycle ?? LIFECYCLES.find((l) => l === life);
       const facts: CandidateFacts = {
         ...c.facts,
         // Mangler nivået, er giftigheten ukjent. Aldri «ufarlig» som standard.
         toxicity: c.facts?.toxicity ?? TOXICITY_LEVELS.find((t) => t === tox) ?? "ukjent",
-        hardiness: c.facts?.hardiness ?? (/^H[1-8]$/.test(hardiness) ? hardiness : undefined),
-        lifecycle: c.facts?.lifecycle ?? LIFECYCLES.find((l) => l === life),
+        // Ettårige lever bare én sommer, så herdighetssonen sier ingenting om dem.
+        hardiness: lifecycle === "ettårig" ? undefined : (c.facts?.hardiness ?? (/^H[1-8]$/.test(hardiness) ? hardiness : undefined)),
+        lifecycle,
       };
       const category = c.category ?? (PLANT_CATEGORIES.some((x) => x.value === cat) ? (cat as PlantCategory) : undefined);
       return { ...c, category, facts };
