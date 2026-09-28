@@ -4,7 +4,7 @@ import { EMPTY } from "@/lib/hooks";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Plus, Map as MapIcon, Sprout, Settings } from "lucide-react";
+import { Plus, Camera, Sprout, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { GardenPreview } from "@/components/garden-preview";
@@ -51,21 +51,19 @@ export function HomeScreen() {
             <GardenPreview plants={plants} width={settings.mapWidth} height={settings.mapHeight} />
           </div>
         )}
-        <div className={`grid gap-2 ${settings.showMap ? "grid-cols-2" : "grid-cols-1"}`}>
-          <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" onClick={() => setAddOpen(true)}>
-            <Plus className="size-5 text-primary" />
-            <span className="text-xs">Ny plante</span>
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="outline" className="h-auto flex-col gap-2 rounded-2xl bg-card py-5" onClick={() => setAddOpen(true)}>
+            <Plus className="size-7 text-primary" />
+            <span className="text-sm font-medium">Ny plante</span>
           </Button>
-          {settings.showMap && (
-            <Button variant="outline" className="h-auto flex-col gap-1.5 rounded-2xl bg-card py-3" nativeButton={false} render={<Link href="/kart/" />}>
-              <MapIcon className="size-5 text-primary" />
-              <span className="text-xs">Hagekart</span>
-            </Button>
-          )}
+          <Button variant="outline" className="h-auto flex-col gap-2 rounded-2xl bg-card py-5" nativeButton={false} render={<Link href="/identifiser/" />}>
+            <Camera className="size-7 text-primary" />
+            <span className="text-sm font-medium">Identifiser</span>
+          </Button>
         </div>
 
         <div className="mt-3">
-          <AskClaudeButton className="h-12 w-full rounded-2xl text-base" />
+          <AskClaudeButton className="h-14 w-full rounded-2xl text-lg [&_svg]:size-5" />
         </div>
 
         {recentPhotos.length > 0 && (
