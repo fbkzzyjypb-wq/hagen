@@ -290,15 +290,32 @@ export function ensureIdentificationFacts(id: string): Promise<void> {
   return task;
 }
 
+/**
+ * Fulle plantefakta for et forslag fra identifiseringen, fra KI-leverandøren (og staudelisten der planten står).
+ * Kaster med en forklaring når leverandør mangler, kallet feiler eller svaret ikke lot seg tolke.
+ */
+export async function fetchCandidateFacts(candidate: Pick<PlantCandidate, "name" | "variety" | "latinName" | "category">): Promise<PlantFacts> {
+  const settings = await db.settings.get("settings");
+  const transport = settings ? resolveTransport(settings) : null;
+  if (!settings || !transport) throw new Error("Sett opp en KI-leverandør under Innstillinger for å hente plantefakta.");
+  const { facts, raw } = await askFacts(transport, settings, {
+    name: candidate.name,
+    variety: candidate.variety,
+    latinName: candidate.latinName,
+    category: candidate.category ?? inferCategory(candidate.latinName) ?? "annet",
+  });
+  if (!facts) throw new Error(`Svaret fra ${transport.label} lot seg ikke tolke. Det begynte slik: «${raw.replace(/\s+/g, " ").slice(0, 120)}»`);
+  return facts;
+}
+
 async function lookupIdentificationFacts(id: string): Promise<void> {
   const record = await db.identifications.get(id);
   const chosen = record?.candidates[0];
   if (!record || !chosen || record.facts) return;
+  // Uten leverandør eller nett skjer ingenting nå. Prøves igjen når oppføringen åpnes.
   const settings = await db.settings.get("settings");
-  const transport = settings && navigator.onLine ? resolveTransport(settings) : null;
-  if (!settings || !transport) return;
-  const { facts, raw } = await askFacts(transport, settings, { name: chosen.name, variety: chosen.variety, latinName: chosen.latinName, category: chosen.category ?? inferCategory(chosen.latinName) ?? "annet" });
-  if (!facts) throw new Error(`Svaret fra ${transport.label} lot seg ikke tolke. Det begynte slik: «${raw.replace(/\s+/g, " ").slice(0, 120)}»`);
+  if (!settings || !navigator.onLine || !resolveTransport(settings)) return;
+  const facts = await fetchCandidateFacts(chosen);
   await db.transaction("rw", [db.identifications], async () => {
     // Er forslaget byttet mens vi ventet på svaret, gjelder ikke svaret lenger.
     const current = await db.identifications.get(id);

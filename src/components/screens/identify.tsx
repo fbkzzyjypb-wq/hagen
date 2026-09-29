@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Camera, Check, ChevronRight, History, ImagePlus, KeyRound, Leaf, Loader2, Plus, RefreshCw, Save, Search, Sparkles, Stethoscope, Trash2, X } from "lucide-react";
+import { Camera, Check, ChevronRight, History, ImagePlus, Info, KeyRound, Leaf, Loader2, Plus, RefreshCw, Save, Search, Sparkles, Stethoscope, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,15 +25,17 @@ import { resolveTransport } from "@/lib/llm-client";
 import { compressImage } from "@/lib/images";
 import { formatDate, formatRelative } from "@/lib/dates";
 import { enrichCandidates, inferCategory, type CandidateImage, type PlantCandidate } from "@/lib/plant-lookup";
-import { ensureIdentificationFacts, hardyIn, withListedFacts } from "@/lib/plant-facts";
+import { ensureIdentificationFacts, fetchCandidateFacts, hardyIn, withListedFacts } from "@/lib/plant-facts";
 import { diagnosePlant, identifyPlantPhotos, identifyPlantWithVision, MAX_IDENTIFY_PHOTOS, PLANT_ORGANS, type PlantOrgan } from "@/lib/plant-id";
 import { TAB_RESELECT_EVENT } from "@/components/tab-bar";
-import { categoryInfo, LIFECYCLE_LABELS, plantTitle, TOXICITY_LABELS, type CandidateFacts, type Identification, type Plant, type ToxicityLevel } from "@/lib/types";
+import { categoryInfo, LIFECYCLE_LABELS, plantTitle, TOXICITY_LABELS, type CandidateFacts, type Identification, type Plant, type PlantFacts, type ToxicityLevel } from "@/lib/types";
 
 type Mode = "plante" | "sykdom";
 type IdResult = { candidates: PlantCandidate[]; remaining?: number; source: "plantnet" | "ki" };
 /** En oppføring i historikken med bildet sitt hentet fra bildetabellen. */
 type HistoryItem = Identification & { photo?: Blob };
+/** Fulle plantefakta hentet for et forslag med «Hent info», før det eventuelt lagres. */
+type CandidateInfo = { status: "busy" } | { status: "done"; facts: PlantFacts } | { status: "error"; message: string };
 /** Et valgt bilde og hva det viser. Organet brukes bare av Pl@ntNet. */
 type PickedPhoto = { id: string; blob: Blob; organ: PlantOrgan };
 
@@ -66,6 +68,8 @@ export function IdentifyScreen() {
   const [idResult, setIdResult] = useState<IdResult | null>(null);
   /** Oppføringen i historikken som det siste svaret er lagret som, hvis brukeren har lagret det. */
   const [recordId, setRecordId] = useState<string | null>(null);
+  /** Plantefakta hentet med «Hent info», per forslag. Følger med når forslaget lagres. */
+  const [infoByKey, setInfoByKey] = useState<Record<string, CandidateInfo>>({});
   /** En tidligere identifisering som er åpnet fra historikken. */
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
@@ -100,21 +104,35 @@ export function IdentifyScreen() {
    */
   async function saveChoice(chosen: PlantCandidate) {
     if (!idResult || photos.length === 0) return;
+    // Er faktaene alt hentet med «Hent info», følger de med, og oppslaget etterpå trengs ikke.
+    const info = infoByKey[candidateKey(chosen) ?? ""];
+    const facts = info?.status === "done" ? info.facts : undefined;
     let id = recordId;
     if (id) {
       // Nytt forslag i samme oppføring: faktaene hørte til det forrige.
-      await db.identifications.update(id, { candidates: [chosen], facts: undefined });
+      await db.identifications.update(id, { candidates: [chosen], facts });
     } else {
       const { record, photo: stored } = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
       await db.transaction("rw", [db.identifications, db.identificationPhotos], async () => {
-        await db.identifications.add(record);
+        await db.identifications.add(facts ? { ...record, facts } : record);
         await db.identificationPhotos.put({ id: record.id, blob: stored });
       });
       id = record.id;
       setRecordId(id);
     }
     // Fulle plantefakta hentes i bakgrunnen, så de ligger klare når oppføringen åpnes.
-    ensureIdentificationFacts(id).catch(() => undefined);
+    if (!facts) ensureIdentificationFacts(id).catch(() => undefined);
+  }
+
+  /** «Hent info»: fulle plantefakta for forslaget, vist i kortet uten å lagre noe. */
+  function fetchInfo(c: PlantCandidate) {
+    const key = candidateKey(c) ?? "";
+    setInfoByKey((m) => ({ ...m, [key]: { status: "busy" } }));
+    fetchCandidateFacts(c)
+      .then((facts) => setInfoByKey((m) => ({ ...m, [key]: { status: "done", facts } })))
+      .catch((err: unknown) =>
+        setInfoByKey((m) => ({ ...m, [key]: { status: "error", message: err instanceof Error && err.message ? err.message : "Fikk ikke hentet plantefakta nå." } }))
+      );
   }
 
   function startAdd(c: PlantCandidate, photoBlob: Blob | null) {
@@ -128,6 +146,7 @@ export function IdentifyScreen() {
     setPhotos([]);
     setIdResult(null);
     setRecordId(null);
+    setInfoByKey({});
     setViewingId(null);
     setDiagnosis(null);
     setError(null);
@@ -191,6 +210,7 @@ export function IdentifyScreen() {
     setPhotos(next);
     setIdResult(null);
     setRecordId(null);
+    setInfoByKey({});
     setDiagnosis(null);
     setError(null);
     setSaved(false);
@@ -389,6 +409,8 @@ export function IdentifyScreen() {
                     zone={settings.climateZone}
                     assistantLabel={assistantLabel}
                     saved={savedKey !== null && candidateKey(c) === savedKey}
+                    lookup={infoByKey[candidateKey(c) ?? ""]}
+                    onFetchInfo={transport ? () => fetchInfo(c) : undefined}
                     onSave={() =>
                       saveChoice(c)
                         .then(() => {
@@ -616,6 +638,8 @@ function CandidateCard({
   zone,
   assistantLabel,
   saved = false,
+  lookup,
+  onFetchInfo,
   onSave,
   onAdd,
 }: {
@@ -624,6 +648,10 @@ function CandidateCard({
   zone?: string;
   assistantLabel: string;
   saved?: boolean;
+  /** Fulle plantefakta hentet med «Hent info», hvis brukeren har bedt om dem. */
+  lookup?: CandidateInfo;
+  /** «Hent info» vises bare når det finnes en KI-leverandør, og bare til faktaene er hentet. */
+  onFetchInfo?: () => void;
   onSave?: () => void;
   onAdd: () => void;
 }) {
@@ -669,16 +697,28 @@ function CandidateCard({
             <Plus data-icon="inline-start" /> Legg til i hagen
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 self-start rounded-xl px-2 text-muted-foreground"
-          nativeButton={false}
-          render={<Link href={assistantHref(undefined, `Fortell meg om ${c.name.toLowerCase()}${c.latinName ? ` (${c.latinName})` : ""}. Passer den i hagen min, og hvordan steller jeg den?`)} />}
-        >
-          <Sparkles data-icon="inline-start" /> Spør {assistantLabel}
-        </Button>
+        <div className="flex flex-wrap gap-1">
+          {onFetchInfo && lookup?.status !== "done" && (
+            <Button variant="ghost" size="sm" className="h-9 rounded-xl px-2 text-muted-foreground" disabled={lookup?.status === "busy"} onClick={onFetchInfo}>
+              {lookup?.status === "busy" ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Info data-icon="inline-start" />}
+              {lookup?.status === "busy" ? "Henter info ..." : "Hent info"}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 rounded-xl px-2 text-muted-foreground"
+            nativeButton={false}
+            render={<Link href={assistantHref(undefined, `Fortell meg om ${c.name.toLowerCase()}${c.latinName ? ` (${c.latinName})` : ""}. Passer den i hagen min, og hvordan steller jeg den?`)} />}
+          >
+            <Sparkles data-icon="inline-start" /> Spør {assistantLabel}
+          </Button>
+        </div>
+        {lookup?.status === "error" && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">Plantefakta: {lookup.message}</p>}
       </div>
+      {lookup?.status === "done" && (
+        <FactsCard plain className="border-t border-border pt-3" subject={{ name: c.name, latinName: c.latinName, category: candidateCategory, facts: lookup.facts }} />
+      )}
     </Card>
   );
 }

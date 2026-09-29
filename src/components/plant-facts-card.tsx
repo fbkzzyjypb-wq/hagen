@@ -24,15 +24,19 @@ function sizeRange([from, to]: [number, number]): string {
   return `${from === to ? n(from) : `${n(from)}–${n(to)}`} ${meters ? "m" : "cm"}`;
 }
 
-/** Plantefakta fra staudelisten og KI-leverandøren, for en plante i hagen eller en lagret identifisering. Vises ikke når ingenting er slått opp. */
-export function FactsCard({ subject, className }: { subject: FactsSubject; className?: string }) {
+/**
+ * Plantefakta fra staudelisten og KI-leverandøren, for en plante i hagen, en lagret identifisering eller et forslag.
+ * Vises ikke når ingenting er slått opp. `plain` gir innholdet uten kortramme, til bruk inne i et annet kort.
+ */
+export function FactsCard({ subject, className, plain = false }: { subject: FactsSubject; className?: string; plain?: boolean }) {
   const found = factsFor(subject);
   if (!found) return null;
   const { facts, source } = found;
   const toxic = facts.toxicity?.level === "giftig" || facts.toxicity?.level === "meget";
   const propagation = facts.propagation ? describePropagation(facts.propagation, subject.category) : null;
+  const Wrapper = plain ? PlainWrapper : Card;
   return (
-    <Card className={cn("gap-3 px-4", className)}>
+    <Wrapper className={cn(plain ? "flex flex-col gap-3" : "gap-3 px-4", className)}>
       <p className="text-sm font-semibold">Plantefakta</p>
       {facts.description && <p className="text-sm">{facts.description}</p>}
       {facts.type && <Row label="Type" value={facts.type} />}
@@ -70,8 +74,12 @@ export function FactsCard({ subject, className }: { subject: FactsSubject; class
           </>
         )}
       </p>
-    </Card>
+    </Wrapper>
   );
+}
+
+function PlainWrapper({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={className}>{children}</div>;
 }
 
 /** «Deling hvert 3. år · apr, mai» med notatet under. Null når planten hverken formeres eller har noe å si om det. */
