@@ -32,12 +32,14 @@ import { categoryInfo, LIFECYCLE_LABELS, plantTitle, TOXICITY_LABELS, type Candi
 
 type Mode = "plante" | "sykdom";
 type IdResult = { candidates: PlantCandidate[]; remaining?: number; source: "plantnet" | "ki" };
+/** En oppføring i historikken med bildet sitt hentet fra bildetabellen. */
+type HistoryItem = Identification & { photo?: Blob };
 /** Et valgt bilde og hva det viser. Organet brukes bare av Pl@ntNet. */
 type PickedPhoto = { id: string; blob: Blob; organ: PlantOrgan };
 
-/** En ny oppføring i historikken, med det første bildet nedskalert. */
-async function newRecord(photo: Blob, photoCount: number, source: Identification["source"], candidates: PlantCandidate[]): Promise<Identification> {
-  return { id: newId(), createdAt: Date.now(), photo: await compressImage(photo, 800, 0.8), photoCount, source, candidates };
+/** En ny oppføring i historikken, og det første bildet nedskalert til bildetabellen. */
+async function newRecord(photo: Blob, photoCount: number, source: Identification["source"], candidates: PlantCandidate[]): Promise<{ record: Identification; photo: Blob }> {
+  return { record: { id: newId(), createdAt: Date.now(), photoCount, source, candidates }, photo: await compressImage(photo, 800, 0.8) };
 }
 
 function plainText(markdown: string, max: number): string {
@@ -50,7 +52,12 @@ export function IdentifyScreen() {
   const settings = useSettings();
   const transport = useMemo(() => resolveTransport(settings), [settings]);
   const plants = useLiveQuery(() => db.plants.orderBy("name").toArray(), []) ?? EMPTY;
-  const history = useLiveQuery(() => db.identifications.orderBy("createdAt").reverse().toArray(), []) ?? EMPTY;
+  const history =
+    useLiveQuery(async (): Promise<HistoryItem[]> => {
+      const items = await db.identifications.orderBy("createdAt").reverse().toArray();
+      const photos = await db.identificationPhotos.bulkGet(items.map((i) => i.id));
+      return items.map((item, i) => ({ ...item, photo: photos[i]?.blob }));
+    }, []) ?? EMPTY;
 
   const [mode, setMode] = useState<Mode>("plante");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
@@ -98,8 +105,11 @@ export function IdentifyScreen() {
       // Nytt forslag i samme oppføring: faktaene hørte til det forrige.
       await db.identifications.update(id, { candidates: [chosen], facts: undefined });
     } else {
-      const record = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
-      await db.identifications.add(record);
+      const { record, photo: stored } = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
+      await db.transaction("rw", [db.identifications, db.identificationPhotos], async () => {
+        await db.identifications.add(record);
+        await db.identificationPhotos.put({ id: record.id, blob: stored });
+      });
       id = record.id;
       setRecordId(id);
     }
@@ -210,7 +220,10 @@ export function IdentifyScreen() {
   }
 
   async function forget(id: string) {
-    await db.identifications.delete(id);
+    await db.transaction("rw", [db.identifications, db.identificationPhotos], async () => {
+      await db.identifications.delete(id);
+      await db.identificationPhotos.delete(id);
+    });
     if (viewingId === id) setViewingId(null);
   }
 
@@ -242,7 +255,7 @@ export function IdentifyScreen() {
             zone={settings.climateZone}
             hasTransport={!!transport}
             assistantLabel={assistantLabel}
-            onAdd={(c) => startAdd(c, viewing.photo)}
+            onAdd={(c) => startAdd(c, viewing.photo ?? null)}
             onNew={() => {
               setViewingId(null);
               inputRef.current?.click();
@@ -445,7 +458,7 @@ export function IdentifyScreen() {
 }
 
 /** Tidligere identifiseringer, nyeste først. */
-function HistoryList({ items, plants, onOpen }: { items: Identification[]; plants: Plant[]; onOpen: (id: string) => void }) {
+function HistoryList({ items, plants, onOpen }: { items: HistoryItem[]; plants: Plant[]; onOpen: (id: string) => void }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="inline-flex items-center gap-1.5 px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -495,7 +508,7 @@ function RecordView({
   onClose,
   onDelete,
 }: {
-  record: Identification;
+  record: HistoryItem;
   plants: Plant[];
   zone?: string;
   hasTransport: boolean;

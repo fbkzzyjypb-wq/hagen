@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Area, Asset, ChatConversation, ChatMessage, Identification, MapBackground, Photo, Plant, Settings } from "./types";
+import type { Area, Asset, ChatConversation, ChatMessage, Identification, IdentificationPhoto, MapBackground, Photo, Plant, Settings } from "./types";
 import { fallbackTitle, groupIntoSessions } from "./chat-sessions";
 import { newId } from "./id";
 
@@ -13,6 +13,7 @@ class HagenDB extends Dexie {
   chatMessages!: EntityTable<ChatMessage, "id">;
   chatConversations!: EntityTable<ChatConversation, "id">;
   identifications!: EntityTable<Identification, "id">;
+  identificationPhotos!: EntityTable<IdentificationPhoto, "id">;
 
   constructor() {
     super("hagen");
@@ -95,6 +96,11 @@ class HagenDB extends Dexie {
     });
     this.version(7).stores({
       identifications: "id, createdAt, plantId",
+    });
+    // Bildene flyttes ut av oppføringene (se Identification i types.ts). Selve flyttingen skjer i bootstrap.tsx,
+    // fordi den må lese bildene utenfor databasetransaksjonen.
+    this.version(8).stores({
+      identificationPhotos: "id",
     });
   }
 }

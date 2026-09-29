@@ -165,12 +165,14 @@ export interface Photo {
   note?: string;
 }
 
-/** En identifisering fra Identifiser-fanen: bildet og forslagene slik de var, så de kan ses igjen senere. */
+/**
+ * En identifisering fra Identifiser-fanen: forslaget slik det var lagret, så det kan ses igjen senere. Bildet ligger i
+ * `identificationPhotos` med samme id, så oppføringen kan oppdateres (fakta, plante) uten at bildet skrives på nytt:
+ * Safari mister blobber som leses fra IndexedDB og lagres igjen.
+ */
 export interface Identification {
   id: string;
   createdAt: number;
-  /** Første bilde, nedskalert. */
-  photo: Blob;
   /** Hvor mange bilder som ble sendt. */
   photoCount: number;
   source: "plantnet" | "ki";
@@ -179,6 +181,13 @@ export interface Identification {
   facts?: PlantFacts;
   /** Planten som ble lagt til i hagen fra denne identifiseringen, hvis noen. */
   plantId?: string;
+}
+
+/** Det første bildet fra en identifisering, nedskalert. Skrives én gang og endres aldri. */
+export interface IdentificationPhoto {
+  /** Samme id som identifiseringen. */
+  id: string;
+  blob: Blob;
 }
 
 /** Frittstående bilde, f.eks. forsidebildet på Hjem (id "cover"). */
