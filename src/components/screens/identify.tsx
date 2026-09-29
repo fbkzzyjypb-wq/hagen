@@ -518,7 +518,11 @@ function HistoryList({ items, plants, onOpen }: { items: HistoryItem[]; plants: 
   );
 }
 
-/** En tidligere identifisering: bildet, forslagene og mulighet for å slette den. */
+/**
+ * En tidligere identifisering, lagt opp som en planteside og ikke som forslagskortet den ble valgt fra: bildet, navnet i
+ * stor skrift med «Legg til i hagen» øverst til høyre, referansebilder, kortfakta og hvor sikkert treffet var, så
+ * assistenten og plantefaktaene i eget kort.
+ */
 function RecordView({
   record,
   plants,
@@ -542,6 +546,9 @@ function RecordView({
 }) {
   const added = record.plantId ? plants.find((p) => p.id === record.plantId) : undefined;
   const chosen = record.candidates[0];
+  /** En plante med samme navn i hagen, når oppføringen ikke selv er lagt til der. */
+  const existing = chosen && !added ? findExisting(plants, chosen) : undefined;
+  const images = chosen?.images ?? [];
   /** Hvorfor siste oppslag feilet. Null mens det pågår eller har lyktes. */
   const [factsError, setFactsError] = useState<string | null>(null);
   const needFacts = !record.facts && hasTransport;
@@ -579,15 +586,42 @@ function RecordView({
         <BlobImage blob={record.photo} alt="Bildet som ble identifisert" className="size-full object-cover" />
       </div>
       {record.photoCount > 1 && <p className="-mt-1 px-1 text-xs text-muted-foreground">Første av {record.photoCount} bilder som ble sendt.</p>}
-      {added && (
-        <Link href={`/plante/?id=${added.id}`} className="inline-flex items-center gap-1.5 px-1 text-sm font-medium text-primary">
-          <Check className="size-4" /> Lagt til i hagen som {plantTitle(added)}. Åpne planten.
-        </Link>
-      )}
       {chosen && (
         <>
-          <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Lagret som</p>
-          <CandidateCard candidate={chosen} plants={plants} zone={zone} assistantLabel={assistantLabel} onAdd={() => onAdd(chosen)} />
+          <div className="flex flex-col gap-2.5 pt-1">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Lagret som</p>
+              {added ? (
+                <Button variant="outline" size="lg" className="rounded-full bg-card" nativeButton={false} render={<Link href={`/plante/?id=${added.id}`} />}>
+                  <Check data-icon="inline-start" /> I hagen som {plantTitle(added)}
+                </Button>
+              ) : (
+                <Button size="lg" className="rounded-full" onClick={() => onAdd(chosen)}>
+                  <Plus data-icon="inline-start" /> Legg til i hagen
+                </Button>
+              )}
+            </div>
+            <div>
+              <h2 className="font-heading text-2xl font-semibold tracking-tight">{chosen.name}</h2>
+              {(chosen.latinName || chosen.variety) && (
+                <p className="text-sm text-muted-foreground">
+                  <span className="italic">{chosen.latinName}</span>
+                  {chosen.variety ? ` '${chosen.variety}'` : ""}
+                </p>
+              )}
+            </div>
+            {images.length > 0 && <ImageStrip images={images} name={chosen.name} />}
+            <FactChips facts={chosen.facts} zone={zone} leading={categoryPill(chosen)} />
+            {chosen.note && <p className="text-sm text-muted-foreground">{chosen.note}</p>}
+            {existing && (
+              <Link href={`/plante/?id=${existing.id}`} className="text-sm font-medium text-primary">
+                Du har allerede {existing.name} i hagen. Åpne planten.
+              </Link>
+            )}
+          </div>
+          <Button variant="outline" className="h-11 rounded-xl bg-card" nativeButton={false} render={<Link href={assistantHref(undefined, askAbout(chosen))} />}>
+            <Sparkles data-icon="inline-start" /> Spør {assistantLabel} om {chosen.name.toLowerCase()}
+          </Button>
           <FactsCard subject={{ name: chosen.name, latinName: chosen.latinName, category: chosen.category, facts: record.facts }} />
           {!record.facts && factsBusy && (
             <p className="inline-flex items-center gap-2 px-1 text-sm text-muted-foreground">
@@ -624,13 +658,37 @@ function candidateKey(c: PlantCandidate | undefined): string | null {
   return c ? `${c.name.toLowerCase()}|${c.latinName.toLowerCase()}` : null;
 }
 
+/** En plante i hagen med samme latinske eller norske navn som forslaget. */
+function findExisting(plants: Plant[], c: PlantCandidate): Plant | undefined {
+  const latin = c.latinName.toLowerCase();
+  const name = c.name.toLowerCase();
+  return plants.find((p) => (latin && p.latinName?.toLowerCase() === latin) || p.name.toLowerCase() === name);
+}
+
+/** Det ferdige spørsmålet til assistenten om et forslag. */
+function askAbout(c: PlantCandidate): string {
+  return `Fortell meg om ${c.name.toLowerCase()}${c.latinName ? ` (${c.latinName})` : ""}. Passer den i hagen min, og hvordan steller jeg den?`;
+}
+
+/** Kategorien som farget pille. Har ikke forslaget noen, utledes den fra det latinske navnet. Null uten kategori. */
+function categoryPill(c: PlantCandidate): React.ReactNode {
+  const category = c.category ?? inferCategory(c.latinName);
+  const info = category ? categoryInfo(category) : undefined;
+  if (!info) return null;
+  return (
+    <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `${info.color}1f`, color: info.color }}>
+      {info.emoji} {info.label}
+    </span>
+  );
+}
+
 function FactsHint() {
   return <p className="px-1 text-[11px] text-muted-foreground">Med en KI-leverandør (Innstillinger) vises også giftighet, herdighet og livsløp for forslagene.</p>;
 }
 
 /**
  * Ett forslag med knappene i den rekkefølgen de brukes: lagre i historikken (man identifiserer oftest andre steder enn
- * hjemme), legge til i hagen, og til sist spørre assistenten. Uten `onSave` (åpnet fra historikken) er «Legg til i hagen» først.
+ * hjemme), legge til i hagen, og til sist spørre assistenten. Lagrede oppføringer vises av `RecordView`.
  */
 function CandidateCard({
   candidate: c,
@@ -652,24 +710,17 @@ function CandidateCard({
   lookup?: CandidateInfo;
   /** «Hent info» vises bare når det finnes en KI-leverandør, og bare til faktaene er hentet. */
   onFetchInfo?: () => void;
-  onSave?: () => void;
+  onSave: () => void;
   onAdd: () => void;
 }) {
   const candidateCategory = c.category ?? inferCategory(c.latinName);
-  const info = candidateCategory ? categoryInfo(candidateCategory) : undefined;
-  const latin = c.latinName.toLowerCase();
-  const name = c.name.toLowerCase();
-  const existing = plants.find((p) => (latin && p.latinName?.toLowerCase() === latin) || p.name.toLowerCase() === name);
+  const existing = findExisting(plants, c);
   const images = c.images ?? [];
   return (
     <Card className="gap-2 px-4">
       <div className="flex items-center justify-between gap-2">
         <p className="font-heading text-base font-medium">{c.name}</p>
-        {info && (
-          <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `${info.color}1f`, color: info.color }}>
-            {info.emoji} {info.label}
-          </span>
-        )}
+        {categoryPill(c)}
       </div>
       {(c.latinName || c.variety) && (
         <p className="-mt-1 text-sm text-muted-foreground">
@@ -687,13 +738,11 @@ function CandidateCard({
       )}
       <div className="flex flex-col gap-1.5">
         <div className="flex gap-2">
-          {onSave && (
-            <Button className="h-10 flex-1 rounded-xl" disabled={saved} onClick={onSave}>
-              {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-              {saved ? "Lagret" : "Lagre"}
-            </Button>
-          )}
-          <Button variant={onSave ? "outline" : "default"} className={cn("h-10 flex-1 rounded-xl", onSave && "bg-card")} onClick={onAdd}>
+          <Button className="h-10 flex-1 rounded-xl" disabled={saved} onClick={onSave}>
+            {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+            {saved ? "Lagret" : "Lagre"}
+          </Button>
+          <Button variant="outline" className="h-10 flex-1 rounded-xl bg-card" onClick={onAdd}>
             <Plus data-icon="inline-start" /> Legg til i hagen
           </Button>
         </div>
@@ -709,7 +758,7 @@ function CandidateCard({
             size="sm"
             className="h-9 rounded-xl px-2 text-muted-foreground"
             nativeButton={false}
-            render={<Link href={assistantHref(undefined, `Fortell meg om ${c.name.toLowerCase()}${c.latinName ? ` (${c.latinName})` : ""}. Passer den i hagen min, og hvordan steller jeg den?`)} />}
+            render={<Link href={assistantHref(undefined, askAbout(c))} />}
           >
             <Sparkles data-icon="inline-start" /> Spør {assistantLabel}
           </Button>
@@ -787,21 +836,25 @@ const TOXICITY_CLASS: Record<ToxicityLevel, string> = {
   ukjent: "bg-muted text-muted-foreground",
 };
 
-/** Livsløp, herdighet målt mot hagens klimasone, og giftighet. Ettårige lever bare én sommer, så de får ingen herdighet. */
-function FactChips({ facts, zone }: { facts?: CandidateFacts; zone?: string }) {
-  if (!facts || (!facts.lifecycle && !facts.hardiness && !facts.toxicity)) return null;
-  const hardiness = facts.lifecycle === "ettårig" ? undefined : facts.hardiness;
+/**
+ * Livsløp, herdighet målt mot hagens klimasone, og giftighet. Ettårige lever bare én sommer, så de får ingen herdighet.
+ * `leading` legges først i raden, for eksempel kategoripillen. Ingenting vises når det ikke finnes noe å vise.
+ */
+function FactChips({ facts, zone, leading }: { facts?: CandidateFacts; zone?: string; leading?: React.ReactNode }) {
+  const hardiness = facts?.lifecycle === "ettårig" ? undefined : facts?.hardiness;
+  if (!leading && !facts?.lifecycle && !hardiness && !facts?.toxicity) return null;
   const hardy = hardyIn(hardiness, zone);
   return (
     <div className="flex flex-wrap gap-1.5">
-      {facts.lifecycle && <Chip>{LIFECYCLE_LABELS[facts.lifecycle]}</Chip>}
+      {leading}
+      {facts?.lifecycle && <Chip>{LIFECYCLE_LABELS[facts.lifecycle]}</Chip>}
       {hardiness && (
         <Chip className={hardy === true ? "bg-primary/10 text-primary" : hardy === false ? "bg-destructive/10 text-destructive" : undefined}>
           {hardy === true ? <Check className="size-3" /> : hardy === false ? <X className="size-3" /> : null}
           {hardy === true ? `Herdig i ${zone} (${hardiness})` : hardy === false ? `Ikke herdig i ${zone} (${hardiness})` : `Herdighet ${hardiness}`}
         </Chip>
       )}
-      {facts.toxicity && <Chip className={TOXICITY_CLASS[facts.toxicity]}>{facts.toxicity === "ukjent" ? "Giftighet ukjent" : TOXICITY_LABELS[facts.toxicity]}</Chip>}
+      {facts?.toxicity && <Chip className={TOXICITY_CLASS[facts.toxicity]}>{facts.toxicity === "ukjent" ? "Giftighet ukjent" : TOXICITY_LABELS[facts.toxicity]}</Chip>}
     </div>
   );
 }
