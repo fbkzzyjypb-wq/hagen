@@ -21,6 +21,11 @@ export function askAbout(c: PlantCandidate): string {
   return `Fortell meg om ${c.name.toLowerCase()}${c.latinName ? ` (${c.latinName})` : ""}. Passer den i hagen min, og hvordan steller jeg den?`;
 }
 
+/** Livsløpet som pille: «Ettårig», «Toårig» eller «Flerårig». Null når det ikke er kjent. */
+export function lifecyclePill(facts?: CandidateFacts): React.ReactNode {
+  return facts?.lifecycle ? <Chip>{LIFECYCLE_LABELS[facts.lifecycle]}</Chip> : null;
+}
+
 /** Kategorien som farget pille. Har ikke forslaget noen, utledes den fra det latinske navnet. Null uten kategori. */
 export function categoryPill(c: PlantCandidate): React.ReactNode {
   const category = c.category ?? inferCategory(c.latinName);
@@ -100,16 +105,18 @@ const TOXICITY_CLASS: Record<ToxicityLevel, string> = {
 
 /**
  * Livsløp, herdighet målt mot hagens klimasone, og giftighet. Ettårige lever bare én sommer, så de får ingen herdighet.
- * `leading` legges først i raden, for eksempel kategoripillen. Ingenting vises når det ikke finnes noe å vise.
+ * `leading` legges først i raden, for eksempel kategoripillen. Livsløpet utelates med `showLifecycle` false, når det
+ * alt vises et annet sted. Ingenting vises når det ikke finnes noe å vise.
  */
-export function FactChips({ facts, zone, leading }: { facts?: CandidateFacts; zone?: string; leading?: React.ReactNode }) {
+export function FactChips({ facts, zone, leading, showLifecycle = true }: { facts?: CandidateFacts; zone?: string; leading?: React.ReactNode; showLifecycle?: boolean }) {
   const hardiness = facts?.lifecycle === "ettårig" ? undefined : facts?.hardiness;
-  if (!leading && !facts?.lifecycle && !hardiness && !facts?.toxicity) return null;
+  const lifecycle = showLifecycle ? facts?.lifecycle : undefined;
+  if (!leading && !lifecycle && !hardiness && !facts?.toxicity) return null;
   const hardy = hardyIn(hardiness, zone);
   return (
     <div className="flex flex-wrap gap-1.5">
       {leading}
-      {facts?.lifecycle && <Chip>{LIFECYCLE_LABELS[facts.lifecycle]}</Chip>}
+      {lifecycle && <Chip>{LIFECYCLE_LABELS[lifecycle]}</Chip>}
       {hardiness && (
         <Chip className={hardy === true ? "bg-primary/10 text-primary" : hardy === false ? "bg-destructive/10 text-destructive" : undefined}>
           {hardy === true ? <Check className="size-3" /> : hardy === false ? <X className="size-3" /> : null}

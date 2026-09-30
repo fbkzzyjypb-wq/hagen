@@ -16,7 +16,7 @@ import { SimpleMarkdown } from "@/components/simple-markdown";
 import { PlantForm, type PlantFormInitial } from "@/components/plant-form";
 import { FactsCard } from "@/components/plant-facts-card";
 import { assistantHref } from "@/components/ask-claude";
-import { askAbout, categoryPill, FactChips, findExisting, ImageStrip } from "@/components/candidate";
+import { askAbout, categoryPill, FactChips, findExisting, ImageStrip, lifecyclePill } from "@/components/candidate";
 import { cn } from "cn";
 import { db } from "@/lib/db";
 import { EMPTY } from "@/lib/hooks";
@@ -495,8 +495,10 @@ function FactsHint() {
 }
 
 /**
- * Ett forslag med knappene i den rekkefølgen de brukes: lagre i historikken (man identifiserer oftest andre steder enn
- * hjemme), legge til i hagen, og til sist spørre assistenten. Lagrede oppføringer har sin egen side (`IdentificationScreen`).
+ * Ett forslag, med livsløpet øverst til høyre (om planten kommer igjen er det første en hageeier lurer på) og kategorien
+ * blant kortfaktaene. Knappene står i den rekkefølgen de brukes: lagre i historikken (man identifiserer oftest andre
+ * steder enn hjemme), legge til i hagen, og til sist spørre assistenten. Lagrede oppføringer har sin egen side
+ * (`IdentificationScreen`).
  */
 function CandidateCard({
   candidate: c,
@@ -528,7 +530,7 @@ function CandidateCard({
     <Card className="gap-2 px-4">
       <div className="flex items-center justify-between gap-2">
         <p className="font-heading text-base font-medium">{c.name}</p>
-        {categoryPill(c)}
+        {lifecyclePill(c.facts)}
       </div>
       {(c.latinName || c.variety) && (
         <p className="-mt-1 text-sm text-muted-foreground">
@@ -537,7 +539,7 @@ function CandidateCard({
         </p>
       )}
       {images.length > 0 && <ImageStrip images={images} name={c.name} />}
-      <FactChips facts={c.facts} zone={zone} />
+      <FactChips facts={c.facts} zone={zone} leading={categoryPill(c)} showLifecycle={false} />
       {c.note && <p className="text-sm text-muted-foreground">{c.note}</p>}
       {existing && (
         <Link href={`/plante/?id=${existing.id}`} className="text-sm font-medium text-primary">
