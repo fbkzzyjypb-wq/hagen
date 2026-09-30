@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ArrowLeft, Camera, Check, Loader2, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/page-header";
 import { Page, EmptyState } from "@/components/page";
 import { BlobImage } from "@/components/blob-image";
@@ -44,6 +45,7 @@ export function IdentificationScreen({ id }: { id: string }) {
   const [formInitial, setFormInitial] = useState<PlantFormInitial | null>(null);
   /** Hvorfor siste oppslag av plantefakta feilet. Null mens det pågår eller har lyktes. */
   const [factsError, setFactsError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const hasTransport = !!transport;
   const assistantLabel = transport?.label ?? "Claude";
@@ -171,11 +173,31 @@ export function IdentificationScreen({ id }: { id: string }) {
           <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" nativeButton={false} render={<Link href="/identifiser/" />}>
             <Camera data-icon="inline-start" /> Ny identifisering
           </Button>
-          <Button variant="outline" className="h-11 rounded-xl bg-card text-destructive" onClick={remove}>
+          <Button variant="outline" className="h-11 rounded-xl bg-card text-destructive" onClick={() => setDeleteOpen(true)}>
             <Trash2 data-icon="inline-start" /> Slett
           </Button>
         </div>
       </Page>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sikker på at du ønsker å slette?</DialogTitle>
+            <DialogDescription>
+              {chosen ? `Identifiseringen av ${chosen.name} slettes.` : "Identifiseringen slettes."} Dette kan ikke angres.
+              {added ? " Planten i hagen beholdes." : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Avbryt
+            </Button>
+            <Button variant="destructive" onClick={remove}>
+              Slett
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PlantForm
         open={formInitial !== null}
