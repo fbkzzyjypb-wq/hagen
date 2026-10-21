@@ -195,6 +195,30 @@ export interface IdentificationPhoto {
   blob: Blob;
 }
 
+/**
+ * Google-kontoen appen er logget inn med, og hvor sikkerhetskopien ligger i Google Disk. Én rad, id "google". Følger
+ * ikke med i eksporten eller i sikkerhetskopien selv.
+ */
+export interface CloudAccount {
+  id: "google";
+  email?: string;
+  refreshToken: string;
+  accessToken?: string;
+  /** Når tilgangsnøkkelen går ut (ms siden 1970). */
+  accessTokenExpiresAt?: number;
+  /** Mappen «Hagen» i Disk. */
+  folderId?: string;
+  /** Hovedfilen (hagen.json) i mappen. */
+  snapshotFileId?: string;
+  /** `modifiedTime` på hovedfilen slik vi sist så den, så vi vet om en annen telefon har endret den. */
+  remoteModifiedTime?: string;
+  lastSyncAt?: number;
+  /** Lokale endringer som ikke er lastet opp ennå. */
+  dirty?: boolean;
+  /** Disk-fil per bilde (nøkkel «photo:<id>», «ident:<id>» eller «map:bg»), så bildene ikke lastes opp på nytt. */
+  files: Record<string, string>;
+}
+
 /** Frittstående bilde, f.eks. forsidebildet på Hjem (id "cover"). */
 export interface Asset {
   id: string;

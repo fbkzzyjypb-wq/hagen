@@ -38,6 +38,10 @@ jobs:
           echo "NEXT_PUBLIC_BUILD=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%MZ)" >> "$GITHUB_ENV"
       - run: npm run build
+        env:
+          # Google-klienten for innlogging med kode (se README, «Konto og Google Disk»). Legges inn som hemmeligheter i repoet.
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

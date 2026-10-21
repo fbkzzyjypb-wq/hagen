@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegistration } from "@/components/sw-register";
 import { Bootstrap } from "@/components/bootstrap";
+import { CloudSync } from "@/components/cloud-sync";
 import { asset } from "@/lib/base-path";
 
 const geistSans = Geist({
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-60 h-(--safe-top) bg-primary" />
         <ServiceWorkerRegistration />
         <Bootstrap />
+        <CloudSync />
       </body>
     </html>
   );

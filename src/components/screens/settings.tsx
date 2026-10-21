@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/page-header";
 import { Page, Section } from "@/components/page";
 import { Field, NativeSelect } from "@/components/fields";
 import { db } from "@/lib/db";
+import { AccountSection } from "@/components/account-section";
 import { useClientValue } from "@/lib/hooks";
 import { formatDate } from "@/lib/dates";
 import { saveSettings } from "@/lib/settings";
@@ -425,6 +426,8 @@ function SettingsForm({ settings }: { settings: Settings }) {
             </div>
           </Card>
         </Section>
+
+        <AccountSection />
 
         <Section title="Om appen">
           <Card className="gap-2 px-4 text-sm text-muted-foreground">

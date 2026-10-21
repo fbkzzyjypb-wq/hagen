@@ -62,6 +62,12 @@ Samtaler lagres i bolker som i ChatGPT: spørsmål som kommer innen en time saml
 
 Alt ligger lokalt på telefonen. Under **Innstillinger → Data** kan du eksportere alt (inkludert bilder) til en fil du lagrer i Filer/iCloud, og importere den igjen på en ny telefon.
 
+## Konto og Google Disk
+
+Under **Innstillinger → Konto** kan du logge inn med Google. Da speiles alt i appen (planter, plasseringer, bilder, identifiseringer, samtaler og innstillinger, inkludert nøklene) til mappen «Hagen» i din Google Disk: hovedfilen `hagen.json` pluss bildene som egne filer. Endringer lastes opp noen sekunder etter at de er gjort, og ved oppstart hentes det ned hvis en annen telefon har endret noe. Logger du inn på en telefon som alt har data, velger du om Disk eller telefonen skal gjelde. Appen ser bare filer den selv har laget i Disk.
+
+Innloggingen bruker Googles kode-innlogging (som på TV-er): appen viser en kode som skrives inn på google.com/device, i nettleseren eller på en annen enhet. Det virker derfor også fra Hjem-skjermen på iPhone, der popup-innlogging ikke gjør det. Det krever en OAuth-klient i Google Cloud av typen «TVs and Limited Input devices», med Google Drive API slått på og scopet `drive.file`. Klientens id og «hemmelighet» (som Google ikke regner som fortrolig for denne klienttypen) legges inn som hemmelighetene `GOOGLE_CLIENT_ID` og `GOOGLE_CLIENT_SECRET` i repoet (Settings → Secrets and variables → Actions), og byggejobben stempler dem inn. Uten dem sier Konto-delen at innlogging ikke er satt opp.
+
 ## Struktur
 
 - `src/app/` – sider (forsiden med kamera, planter og assistent; Plassering, Plante, Kart, Identifisering, Innstillinger)

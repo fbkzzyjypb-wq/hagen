@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Area, Asset, ChatConversation, ChatMessage, Identification, IdentificationPhoto, MapBackground, Photo, Plant, Settings } from "./types";
+import type { Area, Asset, ChatConversation, ChatMessage, CloudAccount, Identification, IdentificationPhoto, MapBackground, Photo, Plant, Settings } from "./types";
 import { fallbackTitle, groupIntoSessions } from "./chat-sessions";
 import { newId } from "./id";
 
@@ -14,6 +14,7 @@ class HagenDB extends Dexie {
   chatConversations!: EntityTable<ChatConversation, "id">;
   identifications!: EntityTable<Identification, "id">;
   identificationPhotos!: EntityTable<IdentificationPhoto, "id">;
+  cloud!: EntityTable<CloudAccount, "id">;
 
   constructor() {
     super("hagen");
@@ -101,6 +102,10 @@ class HagenDB extends Dexie {
     // fordi den må lese bildene utenfor databasetransaksjonen.
     this.version(8).stores({
       identificationPhotos: "id",
+    });
+    // Google-kontoen og tilstanden til synkroniseringen mot Google Disk (se cloud-sync.ts).
+    this.version(9).stores({
+      cloud: "id",
     });
   }
 }
