@@ -311,7 +311,8 @@ export async function fetchCandidateFacts(candidate: Pick<PlantCandidate, "name"
 async function lookupIdentificationFacts(id: string): Promise<void> {
   const record = await db.identifications.get(id);
   const chosen = record?.candidates[0];
-  if (!record || !chosen || record.facts) return;
+  // Ulagrede oppføringer har ikke valgt noe forslag ennå, så det er ingenting å slå opp.
+  if (!record || record.saved === false || !chosen || record.facts) return;
   // Uten leverandør eller nett skjer ingenting nå. Prøves igjen når oppføringen åpnes.
   const settings = await db.settings.get("settings");
   if (!settings || !navigator.onLine || !resolveTransport(settings)) return;

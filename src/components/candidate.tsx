@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Check, Info, Loader2, Plus, Save, Sparkles, X } from "lucide-react";
 import { cn } from "cn";
-import { hardyIn } from "@/lib/plant-facts";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { FactsCard } from "@/components/plant-facts-card";
+import { assistantHref } from "@/components/ask-claude";
+import { fetchCandidateFacts, hardyIn } from "@/lib/plant-facts";
 import { inferCategory, type CandidateImage, type PlantCandidate } from "@/lib/plant-lookup";
-import { categoryInfo, LIFECYCLE_LABELS, TOXICITY_LABELS, type CandidateFacts, type Plant, type ToxicityLevel } from "@/lib/types";
+import { categoryInfo, LIFECYCLE_LABELS, TOXICITY_LABELS, type CandidateFacts, type Plant, type PlantFacts, type ToxicityLevel } from "@/lib/types";
 
 /** Bitene som viser et forslag, delt mellom forslagskortet på Identifiser og siden for en lagret identifisering. */
 
@@ -130,4 +135,123 @@ export function FactChips({ facts, zone, leading, showLifecycle = true }: { fact
 
 function Chip({ className, children }: { className?: string; children: React.ReactNode }) {
   return <span className={cn("inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium", className)}>{children}</span>;
+}
+
+/** Fulle plantefakta hentet for et forslag med «Hent info», før det eventuelt lagres. */
+export type CandidateInfo = { status: "busy" } | { status: "done"; facts: PlantFacts } | { status: "error"; message: string };
+
+/** Navn og latinsk navn, så samme forslag kjennes igjen på tvers av lister. */
+export function candidateKey(c: PlantCandidate | undefined): string | null {
+  return c ? `${c.name.toLowerCase()}|${c.latinName.toLowerCase()}` : null;
+}
+
+/**
+ * «Hent info» per forslag: fulle plantefakta vist i kortet uten å lagre noe. Gir faktaene per forslag, funksjonen som
+ * henter dem, og en som tømmer alt (når bildene byttes).
+ */
+export function useCandidateInfo(): [Record<string, CandidateInfo>, (c: PlantCandidate) => void, () => void] {
+  const [infoByKey, setInfoByKey] = useState<Record<string, CandidateInfo>>({});
+  const fetchInfo = useCallback((c: PlantCandidate) => {
+    const key = candidateKey(c) ?? "";
+    setInfoByKey((m) => ({ ...m, [key]: { status: "busy" } }));
+    fetchCandidateFacts(c)
+      .then((facts) => setInfoByKey((m) => ({ ...m, [key]: { status: "done", facts } })))
+      .catch((err: unknown) =>
+        setInfoByKey((m) => ({ ...m, [key]: { status: "error", message: err instanceof Error && err.message ? err.message : "Fikk ikke hentet plantefakta nå." } }))
+      );
+  }, []);
+  const reset = useCallback(() => setInfoByKey({}), []);
+  return [infoByKey, fetchInfo, reset];
+}
+
+export function FactsHint() {
+  return <p className="px-1 text-[11px] text-muted-foreground">Med en KI-leverandør (Innstillinger) vises også giftighet, herdighet og livsløp for forslagene.</p>;
+}
+
+/**
+ * Ett forslag, med livsløpet øverst til høyre (om planten kommer igjen er det første en hageeier lurer på) og kategorien
+ * blant kortfaktaene. Knappene står i den rekkefølgen de brukes: lagre i historikken (man identifiserer oftest andre
+ * steder enn hjemme), legge til i hagen, og til sist spørre assistenten. Brukes på Identifiser og på en ulagret
+ * oppføring i historikken.
+ */
+export function CandidateCard({
+  candidate: c,
+  plants,
+  zone,
+  assistantLabel,
+  saved = false,
+  lookup,
+  onFetchInfo,
+  onSave,
+  onAdd,
+}: {
+  candidate: PlantCandidate;
+  plants: Plant[];
+  zone?: string;
+  assistantLabel: string;
+  saved?: boolean;
+  /** Fulle plantefakta hentet med «Hent info», hvis brukeren har bedt om dem. */
+  lookup?: CandidateInfo;
+  /** «Hent info» vises bare når det finnes en KI-leverandør, og bare til faktaene er hentet. */
+  onFetchInfo?: () => void;
+  onSave: () => void;
+  onAdd: () => void;
+}) {
+  const candidateCategory = c.category ?? inferCategory(c.latinName);
+  const existing = findExisting(plants, c);
+  const images = c.images ?? [];
+  return (
+    <Card className="gap-2 px-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-heading text-base font-medium">{c.name}</p>
+        {lifecyclePill(c.facts)}
+      </div>
+      {(c.latinName || c.variety) && (
+        <p className="-mt-1 text-sm text-muted-foreground">
+          <span className="italic">{c.latinName}</span>
+          {c.variety ? ` '${c.variety}'` : ""}
+        </p>
+      )}
+      {images.length > 0 && <ImageStrip images={images} name={c.name} />}
+      <FactChips facts={c.facts} zone={zone} leading={categoryPill(c)} showLifecycle={false} />
+      {c.note && <p className="text-sm text-muted-foreground">{c.note}</p>}
+      {existing && (
+        <Link href={`/plante/?id=${existing.id}`} className="text-sm font-medium text-primary">
+          Du har allerede {existing.name} i hagen. Åpne planten.
+        </Link>
+      )}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex gap-2">
+          <Button className="h-10 flex-1 rounded-xl" disabled={saved} onClick={onSave}>
+            {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+            {saved ? "Lagret" : "Lagre"}
+          </Button>
+          <Button variant="outline" className="h-10 flex-1 rounded-xl bg-card" onClick={onAdd}>
+            <Plus data-icon="inline-start" /> Legg til i hagen
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {onFetchInfo && lookup?.status !== "done" && (
+            <Button variant="ghost" size="sm" className="h-9 rounded-xl px-2 text-muted-foreground" disabled={lookup?.status === "busy"} onClick={onFetchInfo}>
+              {lookup?.status === "busy" ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Info data-icon="inline-start" />}
+              {lookup?.status === "busy" ? "Henter info ..." : "Hent info"}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 rounded-xl px-2 text-muted-foreground"
+            nativeButton={false}
+            render={<Link href={assistantHref(undefined, askAbout(c))} />}
+          >
+            <Sparkles data-icon="inline-start" /> Spør {assistantLabel}
+          </Button>
+        </div>
+        {lookup?.status === "error" && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">Plantefakta: {lookup.message}</p>}
+      </div>
+      {lookup?.status === "done" && (
+        <FactsCard plain className="border-t border-border pt-3" subject={{ name: c.name, latinName: c.latinName, category: candidateCategory, facts: lookup.facts }} />
+      )}
+    </Card>
+  );
 }

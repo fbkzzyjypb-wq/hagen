@@ -37,7 +37,7 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
         <div className="mx-auto flex max-w-lg items-center gap-3 px-4 pt-2 pb-3">
           <div className="min-w-0 flex-1">
             <h1 className="font-heading text-2xl font-semibold tracking-tight">Historikk</h1>
-            <p className="text-sm text-muted-foreground">{items.length === 1 ? "1 lagret identifisering" : `${items.length} lagrede identifiseringer`}</p>
+            <p className="text-sm text-muted-foreground">{items.length === 1 ? "1 identifisering" : `${items.length} identifiseringer`}</p>
           </div>
           <Button variant="ghost" size="icon-lg" className="rounded-full" aria-label="Lukk historikken" onClick={onClose}>
             <ChevronDown className="size-5" />
@@ -50,7 +50,7 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
             <EmptyState
               icon={<History className="size-6" />}
               title="Ingen identifiseringer ennå"
-              description="Ta bilde av en plante og trykk Lagre på forslaget du tror stemmer, så havner den her."
+              description="Ta bilde av en plante, så havner svaret her. Trykk Lagre på forslaget du tror stemmer for å ta vare på det."
             />
           ) : (
             <Card className="py-0">
@@ -58,6 +58,7 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
                 {items.map((h) => {
                   const top = h.candidates[0];
                   const added = h.plantId ? plants.find((p) => p.id === h.plantId) : undefined;
+                  const unsaved = h.saved === false;
                   return (
                     <li key={h.id}>
                       <Link href={`/identifisering/?id=${h.id}`} className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-muted/60">
@@ -65,7 +66,11 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[15px] font-medium">{top?.name ?? "Ingen treff"}</span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {top?.latinName && <span className="italic">{top.latinName} · </span>}
+                            {unsaved ? (
+                              <span className="font-medium text-amber-800">Ikke lagret · {h.candidates.length === 1 ? "1 forslag" : `${h.candidates.length} forslag`} · </span>
+                            ) : (
+                              top?.latinName && <span className="italic">{top.latinName} · </span>
+                            )}
                             {formatRelative(h.createdAt)}
                           </span>
                           {added && (

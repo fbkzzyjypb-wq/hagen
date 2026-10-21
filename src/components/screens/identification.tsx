@@ -13,13 +13,13 @@ import { BlobImage } from "@/components/blob-image";
 import { PlantForm, type PlantFormInitial } from "@/components/plant-form";
 import { FactsCard } from "@/components/plant-facts-card";
 import { assistantHref } from "@/components/ask-claude";
-import { askAbout, categoryPill, FactChips, findExisting, ImageStrip } from "@/components/candidate";
+import { askAbout, CandidateCard, candidateKey, categoryPill, FactChips, FactsHint, findExisting, ImageStrip, useCandidateInfo } from "@/components/candidate";
 import { db } from "@/lib/db";
 import { EMPTY } from "@/lib/hooks";
 import { useSettings } from "@/lib/settings";
 import { resolveTransport } from "@/lib/llm-client";
 import { formatDate } from "@/lib/dates";
-import { inferCategory } from "@/lib/plant-lookup";
+import { inferCategory, type PlantCandidate } from "@/lib/plant-lookup";
 import { ensureIdentificationFacts } from "@/lib/plant-facts";
 import { plantTitle, type Identification } from "@/lib/types";
 
@@ -42,14 +42,18 @@ export function IdentificationScreen({ id }: { id: string }) {
     const photo = await db.identificationPhotos.get(id);
     return { ...record, photo: photo?.blob };
   }, [id]);
-  const [formInitial, setFormInitial] = useState<PlantFormInitial | null>(null);
+  /** Forslaget som legges inn i hagen, og skjemaet for det. */
+  const [adding, setAdding] = useState<{ candidate: PlantCandidate; initial: PlantFormInitial } | null>(null);
+  const [infoByKey, fetchInfo] = useCandidateInfo();
   /** Hvorfor siste oppslag av plantefakta feilet. Null mens det pågår eller har lyktes. */
   const [factsError, setFactsError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const hasTransport = !!transport;
   const assistantLabel = transport?.label ?? "Claude";
-  const needFacts = !!item && !item.facts && hasTransport;
+  /** Ikke lagret: brukeren har ikke valgt noe forslag ennå, så alle vises og kan velges. */
+  const unsaved = item?.saved === false;
+  const needFacts = !!item && !unsaved && !item.facts && hasTransport;
   const factsBusy = needFacts && factsError === null;
 
   // Mangler faktaene (oppslaget feilet, eller leverandøren kom til senere), prøves det igjen når siden åpnes.
@@ -79,15 +83,22 @@ export function IdentificationScreen({ id }: { id: string }) {
     );
   }
 
-  const chosen = item.candidates[0];
+  const chosen = unsaved ? undefined : item.candidates[0];
   const added = item.plantId ? plants.find((p) => p.id === item.plantId) : undefined;
   /** En plante med samme navn i hagen, når oppføringen ikke selv er lagt til der. */
   const existing = chosen && !added ? findExisting(plants, chosen) : undefined;
   const images = chosen?.images ?? [];
 
-  function startAdd() {
-    if (!chosen) return;
-    setFormInitial({ name: chosen.name, latinName: chosen.latinName, variety: chosen.variety, category: chosen.category ?? inferCategory(chosen.latinName), photo: item?.photo });
+  function startAdd(c: PlantCandidate) {
+    setAdding({ candidate: c, initial: { name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: item?.photo } });
+  }
+
+  /** «Lagre» på et forslag i en ulagret oppføring: bare det valgte beholdes, og oppføringen er lagret. */
+  async function choose(c: PlantCandidate) {
+    const info = infoByKey[candidateKey(c) ?? ""];
+    const facts = info?.status === "done" ? info.facts : undefined;
+    await db.identifications.update(id, { candidates: [c], saved: true, facts });
+    if (!facts) ensureIdentificationFacts(id).catch(() => undefined);
   }
 
   async function remove() {
@@ -102,7 +113,7 @@ export function IdentificationScreen({ id }: { id: string }) {
     <>
       <PageHeader
         title="Identifisering"
-        subtitle={`${formatDate(item.createdAt)} · ${item.source === "plantnet" ? "Pl@ntNet" : "KI"}`}
+        subtitle={`${formatDate(item.createdAt)} · ${item.source === "plantnet" ? "Pl@ntNet" : "KI"}${unsaved ? " · Ikke lagret" : ""}`}
         leading={
           <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/?vis=historikk" aria-label="Tilbake til historikken" />}>
             <ArrowLeft className="size-5" />
@@ -114,6 +125,25 @@ export function IdentificationScreen({ id }: { id: string }) {
           <BlobImage blob={item.photo} alt="Bildet som ble identifisert" className="size-full object-cover" />
         </div>
         {item.photoCount > 1 && <p className="-mt-1 px-1 text-xs text-muted-foreground">Første av {item.photoCount} bilder som ble sendt.</p>}
+        {unsaved && (
+          <div className="flex flex-col gap-2 pt-1">
+            <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Forslag · ikke lagret</p>
+            {item.candidates.map((c, i) => (
+              <CandidateCard
+                key={`${candidateKey(c)}|${i}`}
+                candidate={c}
+                plants={plants}
+                zone={settings.climateZone}
+                assistantLabel={assistantLabel}
+                lookup={infoByKey[candidateKey(c) ?? ""]}
+                onFetchInfo={hasTransport ? () => fetchInfo(c) : undefined}
+                onSave={() => choose(c)}
+                onAdd={() => startAdd(c)}
+              />
+            ))}
+            {!hasTransport && item.candidates.some((c) => !c.facts) && <FactsHint />}
+          </div>
+        )}
         {chosen && (
           <>
             <div className="flex flex-col gap-2.5 pt-1">
@@ -124,7 +154,7 @@ export function IdentificationScreen({ id }: { id: string }) {
                     <Check data-icon="inline-start" /> I hagen som {plantTitle(added)}
                   </Button>
                 ) : (
-                  <Button size="lg" className="rounded-full" onClick={startAdd}>
+                  <Button size="lg" className="rounded-full" onClick={() => startAdd(chosen)}>
                     <Plus data-icon="inline-start" /> Legg til i hagen
                   </Button>
                 )}
@@ -200,14 +230,16 @@ export function IdentificationScreen({ id }: { id: string }) {
       </Dialog>
 
       <PlantForm
-        open={formInitial !== null}
+        open={adding !== null}
         onOpenChange={(o) => {
-          if (!o) setFormInitial(null);
+          if (!o) setAdding(null);
         }}
-        initial={formInitial ?? undefined}
+        initial={adding?.initial}
         onSaved={(p) => {
-          // Oppføringen får en lenke til planten, så den viser «I hagen som …» neste gang.
-          db.identifications.update(id, { plantId: p.id }).catch(() => undefined);
+          // Oppføringen får en lenke til planten, så den viser «I hagen som …» neste gang. Var den ulagret, er forslaget
+          // som ble lagt inn nå det valgte.
+          const c = adding?.candidate;
+          db.identifications.update(id, c && unsaved ? { plantId: p.id, candidates: [c], saved: true } : { plantId: p.id }).catch(() => undefined);
           router.push(`/plante/?id=${p.id}`);
         }}
       />

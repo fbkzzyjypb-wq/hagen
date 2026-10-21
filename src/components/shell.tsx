@@ -142,7 +142,7 @@ export function Shell({ vis, focusPlantId, initialQuestion }: Props) {
   // Sidebytte med fingeren, og historikken opp fra kameraet. Berøringshendelser med passive: false, så siden kan
   // hindre rullingen når draget er vårt, og la den gå når det ikke er det.
   useDrag(
-    ({ first, active, tap, movement: [mx, my], velocity: [vx, vy], event, memo, cancel }) => {
+    ({ first, active, tap, touches, movement: [mx, my], velocity: [vx, vy], event, memo, cancel }) => {
       let m = memo as DragMemo | undefined;
       if (first) {
         m = {};
@@ -153,6 +153,14 @@ export function Shell({ vis, focusPlantId, initialQuestion }: Props) {
         }
       }
       if (!m || m.mode === "none" || tap) return m;
+      if (touches > 1) {
+        // To fingre er et klyp i søkeren (zoom). Det som alt er dratt, går tilbake.
+        if (m.mode === "x") moveStrip(stripRef.current, paneRef.current, 0, true);
+        if (m.mode === "y") moveHistory(historyRef.current, false, 0, true);
+        m.mode = "none";
+        cancel();
+        return m;
+      }
       if (!m.mode) {
         const ax = Math.abs(mx);
         const ay = Math.abs(my);

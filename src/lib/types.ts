@@ -181,6 +181,11 @@ export interface Identification {
   facts?: PlantFacts;
   /** Planten som ble lagt til i hagen fra denne identifiseringen, hvis noen. */
   plantId?: string;
+  /**
+   * Usann til brukeren har valgt et forslag med «Lagre». Svaret legges i historikken med en gang det kommer, med alle
+   * forslagene; ved lagring beholdes bare det valgte. Mangler på eldre oppføringer, som alle var lagret.
+   */
+  saved?: boolean;
 }
 
 /** Det første bildet fra en identifisering, nedskalert. Skrives én gang og endres aldri. */

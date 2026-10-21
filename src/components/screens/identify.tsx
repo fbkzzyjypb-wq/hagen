@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Camera, CameraOff, Check, ChevronUp, ImagePlus, Images, Info, KeyRound, Leaf, Loader2, Plus, RefreshCw, Save, Search, Settings, Sparkles, Sprout, SquareStack, Stethoscope, X } from "lucide-react";
+import { usePinch } from "@use-gesture/react";
+import { Camera, CameraOff, Check, ChevronUp, ImagePlus, Images, KeyRound, Leaf, Loader2, RefreshCw, Save, Search, Settings, Sparkles, Sprout, SquareStack, Stethoscope, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,9 +16,8 @@ import { Field, NativeSelect } from "@/components/fields";
 import { BlobImage } from "@/components/blob-image";
 import { SimpleMarkdown } from "@/components/simple-markdown";
 import { PlantForm, type PlantFormInitial } from "@/components/plant-form";
-import { FactsCard } from "@/components/plant-facts-card";
 import { assistantHref } from "@/components/ask-claude";
-import { askAbout, categoryPill, FactChips, findExisting, ImageStrip, lifecyclePill } from "@/components/candidate";
+import { CandidateCard, candidateKey, FactsHint, useCandidateInfo } from "@/components/candidate";
 import { cn } from "cn";
 import { db } from "@/lib/db";
 import { EMPTY } from "@/lib/hooks";
@@ -27,9 +27,9 @@ import { useLiveCamera, type CameraStatus } from "@/lib/camera";
 import { resolveTransport } from "@/lib/llm-client";
 import { compressImage } from "@/lib/images";
 import { enrichCandidates, inferCategory, type PlantCandidate } from "@/lib/plant-lookup";
-import { ensureIdentificationFacts, fetchCandidateFacts, withListedFacts } from "@/lib/plant-facts";
+import { ensureIdentificationFacts, withListedFacts } from "@/lib/plant-facts";
 import { diagnosePlant, identifyPlantPhotos, identifyPlantWithVision, MAX_IDENTIFY_PHOTOS, PLANT_ORGANS, type PlantOrgan } from "@/lib/plant-id";
-import { plantTitle, type Identification, type Plant, type PlantFacts } from "@/lib/types";
+import { plantTitle, type Identification } from "@/lib/types";
 
 /** De andre delene av skallet som kameraet kan åpne: plantene til venstre, assistenten til høyre, historikken nedenfra. */
 export type ShellTarget = "planter" | "assistent" | "historikk";
@@ -38,10 +38,11 @@ type Mode = "plante" | "sykdom";
 /** Kameraet står på, eller brukeren ser på bildene som er tatt og svarene på dem. */
 type View = "camera" | "review";
 type IdResult = { candidates: PlantCandidate[]; remaining?: number; source: "plantnet" | "ki" };
-/** Fulle plantefakta hentet for et forslag med «Hent info», før det eventuelt lagres. */
-type CandidateInfo = { status: "busy" } | { status: "done"; facts: PlantFacts } | { status: "error"; message: string };
 /** Et valgt bilde og hva det viser. Organet brukes bare av Pl@ntNet. */
 type PickedPhoto = { id: string; blob: Blob; organ: PlantOrgan };
+
+/** Zoomtrinnene over utløseren. Klyp i søkeren gir alt imellom. */
+const ZOOM_STEPS = [1, 2, 3];
 
 type Props = {
   onNavigate: (target: ShellTarget) => void;
@@ -54,24 +55,31 @@ async function newRecord(photo: Blob, photoCount: number, source: Identification
   return { record: { id: newId(), createdAt: Date.now(), photoCount, source, candidates }, photo: await compressImage(photo, 800, 0.8) };
 }
 
+/** Tidspunktet nå. Egen funksjon fordi React-kompilatorens lintregel ellers tror `Date.now` kalles under render. */
+function timestamp(): number {
+  return Date.now();
+}
+
 function plainText(markdown: string, max: number): string {
   const text = markdown.replace(/\*\*/g, "").replace(/^#+\s*/gm, "").replace(/\s+/g, " ").trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 /**
- * Kameraet, som appen starter i. Søkeren fyller skjermen med modusvelgeren øverst og utløseren nederst, slik man
+ * Kameraet, som appen starter i. Søkeren fyller flaten med modusvelgeren øverst og utløseren nederst, slik man
  * kjenner det fra Snapchat. Et trykk på utløseren tar bildet fra strømmen, spør Pl@ntNet eller KI-leverandøren med en
- * gang og viser svaret i gjennomgangen over kameraet. Med flere bilder på (ikonet øverst til høyre, bare med Pl@ntNet)
- * samler utløseren bilder til «Ferdig», og gjennomgangen lar deg si hva hvert bilde viser før du identifiserer. Får
- * appen ikke bruke kameraet, åpner utløseren telefonens eget kamera i stedet.
+ * gang og viser svaret i gjennomgangen over kameraet. Svaret legges samtidig i historikken som ulagret, så det kan
+ * finnes igjen; «Lagre» på et forslag gjør oppføringen lagret med bare det forslaget. Med flere bilder på (ikonet
+ * øverst til høyre, bare med Pl@ntNet) samler utløseren bilder til «Ferdig», og gjennomgangen lar deg si hva hvert
+ * bilde viser før du identifiserer. Får appen ikke bruke kameraet, åpner utløseren telefonens eget kamera i stedet.
  */
 export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
   const router = useRouter();
   const settings = useSettings();
   const transport = useMemo(() => resolveTransport(settings), [settings]);
   const plants = useLiveQuery(() => db.plants.orderBy("name").toArray(), []) ?? EMPTY;
-  const { videoRef, canvasRef, status: cameraStatus, capture } = useLiveCamera(true);
+  const { videoRef, canvasRef, status: cameraStatus, capture, zoom, setZoom, maxZoom } = useLiveCamera(true);
+  const [infoByKey, fetchInfo, resetInfo] = useCandidateInfo();
 
   const [view, setView] = useState<View>("camera");
   const [mode, setMode] = useState<Mode>("plante");
@@ -79,29 +87,31 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [idResult, setIdResult] = useState<IdResult | null>(null);
-  /** Oppføringen i historikken som det siste svaret er lagret som, hvis brukeren har lagret det. */
+  /** Oppføringen i historikken som det siste svaret ligger i. Settes også i `recordIdRef`, som alltid er oppdatert. */
   const [recordId, setRecordId] = useState<string | null>(null);
-  /** Plantefakta hentet med «Hent info», per forslag. Følger med når forslaget lagres. */
-  const [infoByKey, setInfoByKey] = useState<Record<string, CandidateInfo>>({});
   const [diagnosis, setDiagnosis] = useState<string | null>(null);
   const [plantId, setPlantId] = useState("");
   const [saved, setSaved] = useState(false);
-  const [formInitial, setFormInitial] = useState<PlantFormInitial | null>(null);
+  /** Forslaget som legges inn i hagen, og skjemaet for det. */
+  const [adding, setAdding] = useState<{ candidate: PlantCandidate; initial: PlantFormInitial } | null>(null);
   /** Et kort hvitt blink når bildet tas. */
   const [flash, setFlash] = useState(false);
   /** Flere bilder av samme plante (bare med Pl@ntNet): utløseren samler bilder til «Ferdig» trykkes. */
   const [multiCapture, setMultiCapture] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const recordIdRef = useRef<string | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const captureInputRef = useRef<HTMLInputElement>(null);
   const reviewRef = useRef<HTMLDivElement>(null);
+  const viewfinderRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(zoom);
   const savedRecord = useLiveQuery(() => (recordId ? db.identifications.get(recordId) : undefined), [recordId]);
 
   const canIdentify = !!settings.plantNetApiKey || !!transport;
   const canDiagnose = !!transport;
   const selectedPlant = plants.find((p) => p.id === plantId);
-  /** Forslaget det siste svaret er lagret som, så knappen kan vise «Lagret». */
-  const savedKey = candidateKey(savedRecord?.candidates[0]);
+  /** Forslaget det siste svaret er lagret som, så knappen kan vise «Lagret». Ulagrede oppføringer har ikke valgt noe. */
+  const savedKey = savedRecord && savedRecord.saved !== false ? candidateKey(savedRecord.candidates[0]) : null;
   const assistantLabel = transport?.label ?? "Claude";
   // Flere bilder og organvalg gjelder bare Pl@ntNet, og bare når brukeren har slått det på. KI-leverandøren ser på ett
   // bilde, og det gjør sykdomsvurderingen også.
@@ -109,9 +119,22 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
   const multiPhoto = canMultiCapture && multiCapture;
   const photo = photos[0]?.blob ?? null;
   const reviewing = view === "review";
+  const zoomStep = zoom >= 3 ? 3 : zoom >= 2 ? 2 : 1;
 
   useEffect(() => () => abortRef.current?.abort(), []);
   useEffect(() => onReviewingChange(reviewing), [reviewing, onReviewingChange]);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  // Klyp i søkeren zoomer, fra der zoomen står.
+  usePinch(
+    ({ offset: [scale], event }) => {
+      if (event.cancelable) event.preventDefault();
+      setZoom(scale);
+    },
+    { target: viewfinderRef, from: () => [zoomRef.current, 0], scaleBounds: { min: 1, max: maxZoom }, pointer: { touch: true }, eventOptions: { passive: false } }
+  );
 
   function cancel() {
     abortRef.current?.abort();
@@ -119,55 +142,70 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
     setBusy(false);
   }
 
+  function setRecord(id: string | null) {
+    recordIdRef.current = id;
+    setRecordId(id);
+  }
+
   /**
-   * Lagrer identifiseringen i historikken som det valgte forslaget, med det første bildet nedskalert. Bare det valgte
-   * forslaget tas vare på. Er svaret lagret fra før, byttes forslaget i samme oppføring.
+   * Svaret legges i historikken med en gang, som ulagret, så det kan finnes igjen selv om ingen forslag velges nå. Et
+   * nytt svar på de samme bildene byttes inn i samme oppføring. Historikken er ikke avgjørende, så feil her svelges.
+   */
+  async function keepResult(candidates: PlantCandidate[], source: Identification["source"], list: PickedPhoto[]) {
+    try {
+      const id = recordIdRef.current;
+      if (id) {
+        await db.identifications.update(id, { candidates, source, photoCount: list.length, saved: false, facts: undefined });
+        return;
+      }
+      const { record, photo: stored } = await newRecord(list[0].blob, list.length, source, candidates);
+      await db.transaction("rw", [db.identifications, db.identificationPhotos], async () => {
+        await db.identifications.add({ ...record, saved: false });
+        await db.identificationPhotos.put({ id: record.id, blob: stored });
+      });
+      setRecord(record.id);
+    } catch (err) {
+      console.warn("Kunne ikke legge identifiseringen i historikken", err);
+    }
+  }
+
+  /**
+   * «Lagre» på et forslag: oppføringen i historikken blir lagret med bare det forslaget. Ligger ikke svaret der alt
+   * (lagringen av det feilet), lages oppføringen nå, med det første bildet nedskalert.
    */
   async function saveChoice(chosen: PlantCandidate) {
     if (!idResult || photos.length === 0) return;
     // Er faktaene alt hentet med «Hent info», følger de med, og oppslaget etterpå trengs ikke.
     const info = infoByKey[candidateKey(chosen) ?? ""];
     const facts = info?.status === "done" ? info.facts : undefined;
-    let id = recordId;
+    let id = recordIdRef.current;
     if (id) {
-      // Nytt forslag i samme oppføring: faktaene hørte til det forrige.
-      await db.identifications.update(id, { candidates: [chosen], facts });
+      await db.identifications.update(id, { candidates: [chosen], saved: true, facts });
     } else {
       const { record, photo: stored } = await newRecord(photos[0].blob, photos.length, idResult.source, [chosen]);
       await db.transaction("rw", [db.identifications, db.identificationPhotos], async () => {
-        await db.identifications.add(facts ? { ...record, facts } : record);
+        await db.identifications.add({ ...record, saved: true, ...(facts ? { facts } : {}) });
         await db.identificationPhotos.put({ id: record.id, blob: stored });
       });
       id = record.id;
-      setRecordId(id);
+      setRecord(id);
     }
     // Fulle plantefakta hentes i bakgrunnen, så de ligger klare når oppføringen åpnes.
     if (!facts) ensureIdentificationFacts(id).catch(() => undefined);
   }
 
-  /** «Hent info»: fulle plantefakta for forslaget, vist i kortet uten å lagre noe. */
-  function fetchInfo(c: PlantCandidate) {
-    const key = candidateKey(c) ?? "";
-    setInfoByKey((m) => ({ ...m, [key]: { status: "busy" } }));
-    fetchCandidateFacts(c)
-      .then((facts) => setInfoByKey((m) => ({ ...m, [key]: { status: "done", facts } })))
-      .catch((err: unknown) =>
-        setInfoByKey((m) => ({ ...m, [key]: { status: "error", message: err instanceof Error && err.message ? err.message : "Fikk ikke hentet plantefakta nå." } }))
-      );
-  }
-
   function startAdd(c: PlantCandidate, photoBlob: Blob | null) {
-    setFormInitial({ name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: photoBlob ?? undefined });
+    setAdding({ candidate: c, initial: { name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: photoBlob ?? undefined } });
   }
 
-  /** Tilbake til kameraet: ingen bilder og ingen svar. */
+  /** Tilbake til kameraet: ingen bilder og ingen svar. Svaret som lå i historikken, blir der. */
   function reset() {
     cancel();
     setView("camera");
     setPhotos([]);
     setIdResult(null);
-    setRecordId(null);
-    setInfoByKey({});
+    setRecord(null);
+    resetInfo();
     setDiagnosis(null);
     setError(null);
     setSaved(false);
@@ -195,6 +233,7 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
           found = found.map(withListedFacts);
           setIdResult({ candidates: found, remaining: result.remaining, source: "plantnet" });
           if (found.length === 0) setError(`Pl@ntNet fant ingen plante i ${list.length > 1 ? "bildene" : "bildet"}. Prøv et nærmere bilde av blad, blomst eller frukt.`);
+          else await keepResult(found, "plantnet", list);
         } else if (transport) {
           let found = await identifyPlantWithVision(transport, list[0].blob, ac.signal);
           if (found.length > 0) found = await enrichCandidates(transport, found, ac.signal);
@@ -202,6 +241,7 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
           found = found.map(withListedFacts);
           setIdResult({ candidates: found, source: "ki" });
           if (found.length === 0) setError(`${transport.label} kjente ikke igjen noen plante i bildet. Prøv et nærmere bilde.`);
+          else await keepResult(found, "ki", list);
         }
       } else if (transport) {
         setDiagnosis("");
@@ -224,8 +264,8 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
     setPhotos(next);
     setView(next.length > 0 ? nextView : "camera");
     setIdResult(null);
-    setRecordId(null);
-    setInfoByKey({});
+    setRecord(null);
+    resetInfo();
     setDiagnosis(null);
     setError(null);
     setSaved(false);
@@ -280,7 +320,7 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
   async function savePhotoToPlant() {
     if (!photo || !selectedPlant || !diagnosis) return;
     const [blob, thumb] = await Promise.all([compressImage(photo, 1600, 0.82), compressImage(photo, 320, 0.75)]);
-    await db.photos.add({ id: newId(), plantId: selectedPlant.id, blob, thumb, takenAt: Date.now(), note: `Vurdering fra ${transport?.label ?? "KI"}: ${plainText(diagnosis, 300)}` });
+    await db.photos.add({ id: newId(), plantId: selectedPlant.id, blob, thumb, takenAt: timestamp(), note: `Vurdering fra ${transport?.label ?? "KI"}: ${plainText(diagnosis, 300)}` });
     setSaved(true);
   }
 
@@ -298,7 +338,7 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
 
       {/* Søkeren: bildet i en avrundet, mørk flate med valgene lagt oppå, og knappene på lys bunn under */}
       <div className="absolute inset-0 flex flex-col bg-background px-3 text-foreground select-none" style={{ paddingTop: "calc(var(--safe-top) + 0.75rem)", paddingBottom: "calc(var(--safe-bottom) + 0.5rem)" }}>
-        <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] bg-black text-white [transform:translateZ(0)]">
+        <div ref={viewfinderRef} className="relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] bg-black text-white [transform:translateZ(0)]">
           {/* Videoen er skjult; bildet tegnes i canvaset (se useLiveCamera). */}
           <video ref={videoRef} autoPlay playsInline muted className="pointer-events-none absolute top-0 left-0 size-px opacity-0" />
           <canvas ref={canvasRef} aria-label="Søkeren" className={cn("absolute inset-0 size-full", cameraStatus !== "live" && "invisible")} />
@@ -354,6 +394,25 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
         </div>
 
         <div className="mx-auto flex w-full max-w-lg shrink-0 flex-col gap-2 px-3 pt-3">
+          <div className="flex justify-center gap-2" role="group" aria-label="Zoom">
+            {ZOOM_STEPS.map((z) => {
+              const active = zoomStep === z;
+              return (
+                <button
+                  key={z}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setZoom(z)}
+                  className={cn(
+                    "flex h-8 min-w-11 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums transition-colors",
+                    active ? "bg-foreground text-background" : "bg-muted text-foreground active:bg-accent"
+                  )}
+                >
+                  {active && Math.abs(zoom - z) > 0.05 ? `${zoom.toFixed(1).replace(".", ",")}×` : `${z}×`}
+                </button>
+              );
+            })}
+          </div>
           <div className="grid grid-cols-3 items-center">
             <button
               type="button"
@@ -563,14 +622,16 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
       )}
 
       <PlantForm
-        open={formInitial !== null}
+        open={adding !== null}
         onOpenChange={(o) => {
-          if (!o) setFormInitial(null);
+          if (!o) setAdding(null);
         }}
-        initial={formInitial ?? undefined}
+        initial={adding?.initial}
         onSaved={(p) => {
-          // Er identifiseringen lagret i historikken, får oppføringen en lenke til planten.
-          if (recordId) db.identifications.update(recordId, { plantId: p.id }).catch(() => undefined);
+          // Oppføringen i historikken får en lenke til planten, og forslaget som ble lagt inn er det valgte.
+          const id = recordIdRef.current;
+          const c = adding?.candidate;
+          if (id) db.identifications.update(id, c ? { plantId: p.id, candidates: [c], saved: true } : { plantId: p.id }).catch(() => undefined);
           router.push(`/plante/?id=${p.id}`);
         }}
       />
@@ -619,103 +680,6 @@ function NavButton({ icon, label, onClick }: { icon: React.ReactNode; label: str
       {icon}
       {label}
     </button>
-  );
-}
-
-/** Navn og latinsk navn, så samme forslag kjennes igjen på tvers av lister. */
-function candidateKey(c: PlantCandidate | undefined): string | null {
-  return c ? `${c.name.toLowerCase()}|${c.latinName.toLowerCase()}` : null;
-}
-
-function FactsHint() {
-  return <p className="px-1 text-[11px] text-muted-foreground">Med en KI-leverandør (Innstillinger) vises også giftighet, herdighet og livsløp for forslagene.</p>;
-}
-
-/**
- * Ett forslag, med livsløpet øverst til høyre (om planten kommer igjen er det første en hageeier lurer på) og kategorien
- * blant kortfaktaene. Knappene står i den rekkefølgen de brukes: lagre i historikken (man identifiserer oftest andre
- * steder enn hjemme), legge til i hagen, og til sist spørre assistenten. Lagrede oppføringer har sin egen side
- * (`IdentificationScreen`).
- */
-function CandidateCard({
-  candidate: c,
-  plants,
-  zone,
-  assistantLabel,
-  saved = false,
-  lookup,
-  onFetchInfo,
-  onSave,
-  onAdd,
-}: {
-  candidate: PlantCandidate;
-  plants: Plant[];
-  zone?: string;
-  assistantLabel: string;
-  saved?: boolean;
-  /** Fulle plantefakta hentet med «Hent info», hvis brukeren har bedt om dem. */
-  lookup?: CandidateInfo;
-  /** «Hent info» vises bare når det finnes en KI-leverandør, og bare til faktaene er hentet. */
-  onFetchInfo?: () => void;
-  onSave: () => void;
-  onAdd: () => void;
-}) {
-  const candidateCategory = c.category ?? inferCategory(c.latinName);
-  const existing = findExisting(plants, c);
-  const images = c.images ?? [];
-  return (
-    <Card className="gap-2 px-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-heading text-base font-medium">{c.name}</p>
-        {lifecyclePill(c.facts)}
-      </div>
-      {(c.latinName || c.variety) && (
-        <p className="-mt-1 text-sm text-muted-foreground">
-          <span className="italic">{c.latinName}</span>
-          {c.variety ? ` '${c.variety}'` : ""}
-        </p>
-      )}
-      {images.length > 0 && <ImageStrip images={images} name={c.name} />}
-      <FactChips facts={c.facts} zone={zone} leading={categoryPill(c)} showLifecycle={false} />
-      {c.note && <p className="text-sm text-muted-foreground">{c.note}</p>}
-      {existing && (
-        <Link href={`/plante/?id=${existing.id}`} className="text-sm font-medium text-primary">
-          Du har allerede {existing.name} i hagen. Åpne planten.
-        </Link>
-      )}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex gap-2">
-          <Button className="h-10 flex-1 rounded-xl" disabled={saved} onClick={onSave}>
-            {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-            {saved ? "Lagret" : "Lagre"}
-          </Button>
-          <Button variant="outline" className="h-10 flex-1 rounded-xl bg-card" onClick={onAdd}>
-            <Plus data-icon="inline-start" /> Legg til i hagen
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {onFetchInfo && lookup?.status !== "done" && (
-            <Button variant="ghost" size="sm" className="h-9 rounded-xl px-2 text-muted-foreground" disabled={lookup?.status === "busy"} onClick={onFetchInfo}>
-              {lookup?.status === "busy" ? <Loader2 className="animate-spin" data-icon="inline-start" /> : <Info data-icon="inline-start" />}
-              {lookup?.status === "busy" ? "Henter info ..." : "Hent info"}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-9 rounded-xl px-2 text-muted-foreground"
-            nativeButton={false}
-            render={<Link href={assistantHref(undefined, askAbout(c))} />}
-          >
-            <Sparkles data-icon="inline-start" /> Spør {assistantLabel}
-          </Button>
-        </div>
-        {lookup?.status === "error" && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">Plantefakta: {lookup.message}</p>}
-      </div>
-      {lookup?.status === "done" && (
-        <FactsCard plain className="border-t border-border pt-3" subject={{ name: c.name, latinName: c.latinName, category: candidateCategory, facts: lookup.facts }} />
-      )}
-    </Card>
   );
 }
 

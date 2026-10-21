@@ -31,7 +31,11 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f8f4",
+  // Også for mørk modus, så iOS ikke tegner statuslinjen svart der appen er lys.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f8f4" },
+    { media: "(prefers-color-scheme: dark)", color: "#f7f8f4" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
