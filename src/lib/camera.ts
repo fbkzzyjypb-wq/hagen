@@ -88,17 +88,22 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
     };
     const video = videoRef.current;
     document.addEventListener("visibilitychange", onVisibility);
-    // Målene settes når strømmen kjenner sin størrelse, når den bytter (snur telefonen) og når skjermen endrer seg.
-    video?.addEventListener("loadedmetadata", fit);
-    video?.addEventListener("resize", fit);
+    // Målene settes når strømmen kjenner sin størrelse, når den bytter (snur telefonen), når flaten rundt endrer seg,
+    // og for sikkerhets skyld et par ganger rett etter start: iOS melder ikke alltid fra når målene er klare.
+    const videoEvents = ["loadedmetadata", "resize", "playing", "canplay"];
+    for (const name of videoEvents) video?.addEventListener(name, fit);
     window.addEventListener("resize", fit);
+    const observer = typeof ResizeObserver !== "undefined" && video?.parentElement ? new ResizeObserver(fit) : null;
+    if (video?.parentElement) observer?.observe(video.parentElement);
+    const retries = [300, 1000, 2500].map((ms) => window.setTimeout(fit, ms));
     if (document.visibilityState !== "hidden") void start();
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
-      video?.removeEventListener("loadedmetadata", fit);
-      video?.removeEventListener("resize", fit);
+      for (const name of videoEvents) video?.removeEventListener(name, fit);
       window.removeEventListener("resize", fit);
+      observer?.disconnect();
+      for (const t of retries) window.clearTimeout(t);
       stop();
     };
   }, [active]);

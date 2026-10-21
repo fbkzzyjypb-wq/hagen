@@ -96,6 +96,13 @@ export function Shell({ vis, focusPlantId, initialQuestion }: Props) {
   useEffect(() => {
     reviewingRef.current = reviewing;
   }, [reviewing]);
+  // Mens søkeren vises, skal statuslinjen ligge rett på videoen uten stripen bak (se layout).
+  useEffect(() => {
+    const camera = pane === CAMERA && !historyOpen && !reviewing;
+    if (camera) document.documentElement.setAttribute("data-camera", "");
+    else document.documentElement.removeAttribute("data-camera");
+    return () => document.documentElement.removeAttribute("data-camera");
+  }, [pane, historyOpen, reviewing]);
   useLayoutEffect(() => {
     moveStrip(stripRef.current, pane, 0, true);
   }, [pane]);

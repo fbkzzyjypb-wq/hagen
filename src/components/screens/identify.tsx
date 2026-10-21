@@ -295,85 +295,90 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
       <input ref={galleryInputRef} type="file" accept="image/*" multiple={multiPhoto} className="hidden" onChange={(e) => onFile(e.currentTarget)} />
       <input ref={captureInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.currentTarget)} />
 
-      {/* Søkeren */}
-      <div className="absolute inset-0 select-none text-white">
-        <video ref={videoRef} autoPlay playsInline muted className={cn("absolute top-0 left-0 size-full max-w-none object-cover", cameraStatus !== "live" && "invisible")} />
-        {cameraStatus !== "live" && <CameraNotice status={cameraStatus} />}
-        <div className={cn("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", flash ? "opacity-80" : "opacity-0")} aria-hidden />
+      {/* Søkeren: bildet i en avrundet flate fra toppen ned til knappene, med valgene lagt oppå */}
+      <div className="absolute inset-0 flex flex-col bg-black text-white select-none">
+        <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] bg-black [transform:translateZ(0)]">
+          <video ref={videoRef} autoPlay playsInline muted className={cn("absolute top-0 left-0 size-full max-w-none object-cover", cameraStatus !== "live" && "invisible")} />
+          {cameraStatus !== "live" && <CameraNotice status={cameraStatus} />}
+          <div className={cn("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", flash ? "opacity-80" : "opacity-0")} aria-hidden />
 
-        <div className="pt-safe absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent pb-10">
-          <div className="relative mx-auto flex max-w-lg items-center justify-center px-4 pt-3">
-            <div role="tablist" aria-label="Hva vil du vite?" className="flex rounded-full bg-black/40 p-1 backdrop-blur-md">
-              <ModeButton active={mode === "plante"} onClick={() => switchMode("plante")}>
-                <Leaf className="size-4" /> Hvilken plante?
-              </ModeButton>
-              <ModeButton active={mode === "sykdom"} onClick={() => switchMode("sykdom")}>
-                <Stethoscope className="size-4" /> Hva feiler den?
-              </ModeButton>
-            </div>
-            <div className="absolute top-3 right-4 flex flex-col gap-2">
-              <Link href="/innstillinger/" aria-label="Innstillinger" className="flex size-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:bg-black/60">
-                <Settings className="size-5" />
-              </Link>
-              {canMultiCapture && (
-                <button
-                  type="button"
-                  aria-pressed={multiCapture}
-                  aria-label="Flere bilder av samme plante"
-                  onClick={() => setMultiCapture((v) => !v)}
-                  className={cn("flex size-10 items-center justify-center rounded-full backdrop-blur-md transition-colors", multiCapture ? "bg-white text-foreground" : "bg-black/40 active:bg-black/60")}
-                >
-                  <SquareStack className="size-5" />
-                </button>
-              )}
+          <div className="pt-safe absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent pb-10">
+            <div className="relative mx-auto flex max-w-lg items-center justify-center px-4 pt-3">
+              <div role="tablist" aria-label="Hva vil du vite?" className="flex rounded-full bg-black/40 p-1 backdrop-blur-md">
+                <ModeButton active={mode === "plante"} onClick={() => switchMode("plante")}>
+                  <Leaf className="size-4" /> Hvilken plante?
+                </ModeButton>
+                <ModeButton active={mode === "sykdom"} onClick={() => switchMode("sykdom")}>
+                  <Stethoscope className="size-4" /> Hva feiler den?
+                </ModeButton>
+              </div>
+              <div className="absolute top-3 right-4 flex flex-col gap-2">
+                <Link href="/innstillinger/" aria-label="Innstillinger" className="flex size-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:bg-black/60">
+                  <Settings className="size-5" />
+                </Link>
+                {canMultiCapture && (
+                  <button
+                    type="button"
+                    aria-pressed={multiCapture}
+                    aria-label="Flere bilder av samme plante"
+                    onClick={() => setMultiCapture((v) => !v)}
+                    className={cn("flex size-10 items-center justify-center rounded-full backdrop-blur-md transition-colors", multiCapture ? "bg-white text-foreground" : "bg-black/40 active:bg-black/60")}
+                  >
+                    <SquareStack className="size-5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+
+          {(!canRun || photos.length > 0 || multiPhoto) && (
+            <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 bg-gradient-to-t from-black/55 to-transparent px-6 pt-10 pb-4">
+              {!canRun && <SetupNotice text={setupText} tone="overlay" />}
+              {photos.length > 0 ? (
+                <button type="button" onClick={() => setView("review")} className="flex items-center gap-2 rounded-full bg-black/45 py-1.5 pr-4 pl-1.5 text-sm font-medium backdrop-blur-md active:bg-black/65">
+                  <span className="flex">
+                    {photos.map((p, i) => (
+                      <BlobImage key={p.id} blob={p.blob} alt="" className={cn("size-8 rounded-full border-2 border-white/80 object-cover", i > 0 && "-ml-2")} />
+                    ))}
+                  </span>
+                  {photos.length === 1 ? "1 bilde" : `${photos.length} bilder`}
+                </button>
+              ) : (
+                multiPhoto && <p className="rounded-full bg-black/45 px-4 py-1.5 text-center text-sm backdrop-blur-md">Ta opptil {MAX_IDENTIFY_PHOTOS} bilder av planten, og trykk Ferdig.</p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent pt-12" style={{ paddingBottom: "var(--safe-bottom)" }}>
-          <div className="mx-auto flex max-w-lg flex-col gap-4 px-6 pb-2">
-            {!canRun && <SetupNotice text={setupText} tone="overlay" />}
-            {photos.length > 0 ? (
-              <button type="button" onClick={() => setView("review")} className="flex items-center gap-2 self-center rounded-full bg-black/45 py-1.5 pr-4 pl-1.5 text-sm font-medium backdrop-blur-md active:bg-black/65">
-                <span className="flex">
-                  {photos.map((p, i) => (
-                    <BlobImage key={p.id} blob={p.blob} alt="" className={cn("size-8 rounded-full border-2 border-white/80 object-cover", i > 0 && "-ml-2")} />
-                  ))}
-                </span>
-                {photos.length === 1 ? "1 bilde" : `${photos.length} bilder`}
+        <div className="mx-auto flex w-full max-w-lg shrink-0 flex-col gap-3 px-6 pt-3" style={{ paddingBottom: "calc(var(--safe-bottom) + 0.25rem)" }}>
+          <div className="grid grid-cols-3 items-center">
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              aria-label="Velg fra bilder"
+              className="flex size-12 items-center justify-center justify-self-start rounded-full bg-white/15 active:bg-white/30"
+            >
+              <Images className="size-6" />
+            </button>
+            <button
+              type="button"
+              onClick={shoot}
+              aria-label={mode === "plante" ? "Ta bilde av planten" : "Ta bilde av det som feiler"}
+              className="flex size-[76px] items-center justify-center justify-self-center rounded-full border-4 border-white transition-transform active:scale-90"
+            >
+              <span className="size-[60px] rounded-full bg-white/90" />
+            </button>
+            {photos.length > 0 && (
+              <button type="button" onClick={() => setView("review")} className="justify-self-end rounded-full px-3 py-2 text-base font-semibold active:opacity-70">
+                Ferdig
               </button>
-            ) : (
-              multiPhoto && <p className="self-center rounded-full bg-black/45 px-4 py-1.5 text-center text-sm backdrop-blur-md">Ta opptil {MAX_IDENTIFY_PHOTOS} bilder av planten, og trykk Ferdig.</p>
             )}
-            <div className="grid grid-cols-3 items-center">
-              <button
-                type="button"
-                onClick={() => galleryInputRef.current?.click()}
-                aria-label="Velg fra bilder"
-                className="flex size-12 items-center justify-center justify-self-start rounded-full bg-black/40 backdrop-blur-md active:bg-black/60"
-              >
-                <Images className="size-6" />
-              </button>
-              <button
-                type="button"
-                onClick={shoot}
-                aria-label={mode === "plante" ? "Ta bilde av planten" : "Ta bilde av det som feiler"}
-                className="flex size-[76px] items-center justify-center justify-self-center rounded-full border-4 border-white transition-transform active:scale-90"
-              >
-                <span className="size-[60px] rounded-full bg-white/90" />
-              </button>
-              {photos.length > 0 && (
-                <button type="button" onClick={() => setView("review")} className="justify-self-end rounded-full px-3 py-2 text-base font-semibold active:opacity-70">
-                  Ferdig
-                </button>
-              )}
-            </div>
-            <nav aria-label="Deler av appen" className="grid grid-cols-3 text-[11px] font-medium text-white/85">
-              <NavButton icon={<Sprout className="size-5" />} label="Planter" onClick={() => onNavigate("planter")} />
-              <NavButton icon={<ChevronUp className="size-5" />} label="Historikk" onClick={() => onNavigate("historikk")} />
-              <NavButton icon={<Sparkles className="size-5" />} label="Assistent" onClick={() => onNavigate("assistent")} />
-            </nav>
           </div>
+          <nav aria-label="Deler av appen" className="grid grid-cols-3 text-[11px] font-medium text-white/85">
+            <NavButton icon={<Sprout className="size-5" />} label="Planter" onClick={() => onNavigate("planter")} />
+            <NavButton icon={<ChevronUp className="size-5" />} label="Historikk" onClick={() => onNavigate("historikk")} />
+            <NavButton icon={<Sparkles className="size-5" />} label="Assistent" onClick={() => onNavigate("assistent")} />
+          </nav>
         </div>
       </div>
 
