@@ -70,7 +70,7 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
   const settings = useSettings();
   const transport = useMemo(() => resolveTransport(settings), [settings]);
   const plants = useLiveQuery(() => db.plants.orderBy("name").toArray(), []) ?? EMPTY;
-  const { videoRef, status: cameraStatus, capture } = useLiveCamera(true);
+  const { videoRef, canvasRef, status: cameraStatus, capture } = useLiveCamera(true);
 
   const [view, setView] = useState<View>("camera");
   const [mode, setMode] = useState<Mode>("plante");
@@ -297,8 +297,10 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
 
       {/* Søkeren: bildet i en avrundet flate fra toppen ned til knappene, med valgene lagt oppå */}
       <div className="absolute inset-0 flex flex-col bg-black text-white select-none">
-        <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] bg-black [transform:translateZ(0)]">
-          <video ref={videoRef} autoPlay playsInline muted className={cn("absolute top-0 left-0 size-full max-w-none object-cover", cameraStatus !== "live" && "invisible")} />
+        <div className={cn("relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] [transform:translateZ(0)]", cameraStatus === "live" ? "bg-white" : "bg-black")}>
+          {/* Videoen er skjult; bildet tegnes i canvaset (se useLiveCamera). */}
+          <video ref={videoRef} autoPlay playsInline muted className="pointer-events-none absolute top-0 left-0 size-px opacity-0" />
+          <canvas ref={canvasRef} aria-label="Søkeren" className={cn("absolute inset-0 size-full", cameraStatus !== "live" && "invisible")} />
           {cameraStatus !== "live" && <CameraNotice status={cameraStatus} />}
           <div className={cn("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", flash ? "opacity-80" : "opacity-0")} aria-hidden />
 

@@ -4,30 +4,27 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 
 export type CameraStatus = "starting" | "live" | "denied" | "unavailable";
 
-/**
- * Gjør videoen så stor at den dekker beholderen, midtstilt, slik `object-fit: cover` skulle gjort. iOS lar iblant
- * kamerastrømmer stå i sin egen høyde med svarte felt over og under, så målene settes direkte i stedet.
- */
-function fitCover(video: HTMLVideoElement) {
-  const box = video.parentElement;
-  if (!box || !video.videoWidth || !video.videoHeight) return;
-  const scale = Math.max(box.clientWidth / video.videoWidth, box.clientHeight / video.videoHeight);
-  const w = Math.ceil(video.videoWidth * scale);
-  const h = Math.ceil(video.videoHeight * scale);
-  video.style.width = `${w}px`;
-  video.style.height = `${h}px`;
-  video.style.left = `${Math.round((box.clientWidth - w) / 2)}px`;
-  video.style.top = `${Math.round((box.clientHeight - h) / 2)}px`;
-}
+type VideoWithFrames = HTMLVideoElement & {
+  requestVideoFrameCallback?: (callback: () => void) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+};
 
 /**
- * Levende bilde fra bakkameraet i et <video>-element. Strømmen startes når `active` er sann, stoppes når appen går i
- * bakgrunnen (så kameralampen ikke står på unødig) og startes igjen når appen kommer tilbake. iOS stopper strømmen selv
- * når et annet program tar kameraet; da startes den på nytt. `capture` gir det som vises nå som JPEG i strømmens
- * oppløsning, eller null når kameraet ikke er i gang.
+ * Levende bilde fra bakkameraet, tegnet inn i et <canvas> så det fyller flaten sin, beskåret i midten slik
+ * `object-fit: cover` skulle gjort. Selve <video>-elementet holdes skjult: iOS viser kamerastrømmer i sitt eget lag,
+ * der størrelse og beskjæring ikke følger CSS, mens et canvas er en vanlig flate. Strømmen startes når `active` er
+ * sann, stoppes når appen går i bakgrunnen (så kameralampen ikke står på unødig) og startes igjen når appen kommer
+ * tilbake. iOS stopper strømmen selv når et annet program tar kameraet; da startes den på nytt. `capture` gir hele
+ * bildet fra strømmen som JPEG, eller null når kameraet ikke er i gang.
  */
-export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoElement | null>; status: CameraStatus; capture: () => Promise<Blob | null> } {
+export function useLiveCamera(active: boolean): {
+  videoRef: RefObject<HTMLVideoElement | null>;
+  canvasRef: RefObject<HTMLCanvasElement | null>;
+  status: CameraStatus;
+  capture: () => Promise<Blob | null>;
+} {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<CameraStatus>("starting");
 
@@ -35,11 +32,55 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
     if (!active) return;
     let cancelled = false;
     let starting = false;
-    const fit = () => {
-      if (videoRef.current) fitCover(videoRef.current);
-    };
+    let frameHandle = 0;
+    let usingVideoFrames = false;
+
+    /** Tegner bildet som vises nå, så stort at det dekker hele flaten, med like mye skåret bort på hver side. */
+    function draw() {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      if (!video || !canvas || !video.videoWidth || !video.videoHeight) return;
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cw = Math.round(rect.width * dpr);
+      const ch = Math.round(rect.height * dpr);
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+      }
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const scale = Math.max(cw / video.videoWidth, ch / video.videoHeight);
+      const sw = cw / scale;
+      const sh = ch / scale;
+      ctx.drawImage(video, (video.videoWidth - sw) / 2, (video.videoHeight - sh) / 2, sw, sh, 0, 0, cw, ch);
+    }
+
+    // Tegnes for hvert bilde fra kameraet der nettleseren kan si fra om det, ellers for hver skjermoppdatering.
+    function schedule() {
+      if (cancelled || !streamRef.current) return;
+      const video = videoRef.current as VideoWithFrames | null;
+      if (video?.requestVideoFrameCallback) {
+        usingVideoFrames = true;
+        frameHandle = video.requestVideoFrameCallback(tick);
+      } else {
+        usingVideoFrames = false;
+        frameHandle = requestAnimationFrame(tick);
+      }
+    }
+    function tick() {
+      draw();
+      schedule();
+    }
+    function stopDrawing() {
+      const video = videoRef.current as VideoWithFrames | null;
+      if (usingVideoFrames) video?.cancelVideoFrameCallback?.(frameHandle);
+      else cancelAnimationFrame(frameHandle);
+    }
 
     function stop() {
+      stopDrawing();
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
@@ -68,8 +109,8 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
         // Avvises play() av autoplay-reglene, starter videoen likevel selv: den er stum og spilles i elementet.
         await video.play().catch(() => undefined);
         if (cancelled) return;
-        fit();
         setStatus("live");
+        schedule();
         stream.getVideoTracks()[0]?.addEventListener("ended", () => {
           if (cancelled || streamRef.current !== stream) return;
           stop();
@@ -86,24 +127,11 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
       if (document.visibilityState === "hidden") stop();
       else void start();
     };
-    const video = videoRef.current;
     document.addEventListener("visibilitychange", onVisibility);
-    // Målene settes når strømmen kjenner sin størrelse, når den bytter (snur telefonen), når flaten rundt endrer seg,
-    // og for sikkerhets skyld et par ganger rett etter start: iOS melder ikke alltid fra når målene er klare.
-    const videoEvents = ["loadedmetadata", "resize", "playing", "canplay"];
-    for (const name of videoEvents) video?.addEventListener(name, fit);
-    window.addEventListener("resize", fit);
-    const observer = typeof ResizeObserver !== "undefined" && video?.parentElement ? new ResizeObserver(fit) : null;
-    if (video?.parentElement) observer?.observe(video.parentElement);
-    const retries = [300, 1000, 2500].map((ms) => window.setTimeout(fit, ms));
     if (document.visibilityState !== "hidden") void start();
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
-      for (const name of videoEvents) video?.removeEventListener(name, fit);
-      window.removeEventListener("resize", fit);
-      observer?.disconnect();
-      for (const t of retries) window.clearTimeout(t);
       stop();
     };
   }, [active]);
@@ -120,5 +148,5 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
     return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
   }, []);
 
-  return { videoRef, status, capture };
+  return { videoRef, canvasRef, status, capture };
 }
