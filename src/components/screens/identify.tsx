@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
 import { Page } from "@/components/page";
+import { Frame } from "@/components/frame";
 import { Field, NativeSelect } from "@/components/fields";
 import { BlobImage } from "@/components/blob-image";
 import { SimpleMarkdown } from "@/components/simple-markdown";
@@ -295,16 +296,16 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
       <input ref={galleryInputRef} type="file" accept="image/*" multiple={multiPhoto} className="hidden" onChange={(e) => onFile(e.currentTarget)} />
       <input ref={captureInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.currentTarget)} />
 
-      {/* Søkeren: bildet i en avrundet flate fra toppen ned til knappene, med valgene lagt oppå */}
-      <div className="absolute inset-0 flex flex-col bg-black text-white select-none">
-        <div className={cn("relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] [transform:translateZ(0)]", cameraStatus === "live" ? "bg-white" : "bg-black")}>
+      {/* Søkeren: bildet i en avrundet, mørk flate med valgene lagt oppå, og knappene på lys bunn under */}
+      <div className="absolute inset-0 flex flex-col bg-background px-3 text-foreground select-none" style={{ paddingTop: "calc(var(--safe-top) + 0.75rem)", paddingBottom: "calc(var(--safe-bottom) + 0.5rem)" }}>
+        <div className="relative isolate min-h-0 flex-1 overflow-hidden rounded-[28px] bg-black text-white [transform:translateZ(0)]">
           {/* Videoen er skjult; bildet tegnes i canvaset (se useLiveCamera). */}
           <video ref={videoRef} autoPlay playsInline muted className="pointer-events-none absolute top-0 left-0 size-px opacity-0" />
           <canvas ref={canvasRef} aria-label="Søkeren" className={cn("absolute inset-0 size-full", cameraStatus !== "live" && "invisible")} />
           {cameraStatus !== "live" && <CameraNotice status={cameraStatus} />}
           <div className={cn("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", flash ? "opacity-80" : "opacity-0")} aria-hidden />
 
-          <div className="pt-safe absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent pb-10">
+          <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/55 to-transparent pb-10">
             <div className="relative mx-auto flex max-w-lg items-center justify-center px-4 pt-3">
               <div role="tablist" aria-label="Hva vil du vite?" className="flex rounded-full bg-black/40 p-1 backdrop-blur-md">
                 <ModeButton active={mode === "plante"} onClick={() => switchMode("plante")}>
@@ -352,13 +353,13 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
           )}
         </div>
 
-        <div className="mx-auto flex w-full max-w-lg shrink-0 flex-col gap-3 px-6 pt-3" style={{ paddingBottom: "calc(var(--safe-bottom) + 0.25rem)" }}>
+        <div className="mx-auto flex w-full max-w-lg shrink-0 flex-col gap-2 px-3 pt-3">
           <div className="grid grid-cols-3 items-center">
             <button
               type="button"
               onClick={() => galleryInputRef.current?.click()}
               aria-label="Velg fra bilder"
-              className="flex size-12 items-center justify-center justify-self-start rounded-full bg-white/15 active:bg-white/30"
+              className="flex size-12 items-center justify-center justify-self-start rounded-full bg-muted text-foreground active:bg-accent"
             >
               <Images className="size-6" />
             </button>
@@ -366,17 +367,17 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
               type="button"
               onClick={shoot}
               aria-label={mode === "plante" ? "Ta bilde av planten" : "Ta bilde av det som feiler"}
-              className="flex size-[76px] items-center justify-center justify-self-center rounded-full border-4 border-white transition-transform active:scale-90"
+              className="flex size-[76px] items-center justify-center justify-self-center rounded-full border-[3px] border-foreground transition-transform active:scale-90"
             >
-              <span className="size-[60px] rounded-full bg-white/90" />
+              <span className="size-[62px] rounded-full bg-primary" />
             </button>
             {photos.length > 0 && (
-              <button type="button" onClick={() => setView("review")} className="justify-self-end rounded-full px-3 py-2 text-base font-semibold active:opacity-70">
+              <button type="button" onClick={() => setView("review")} className="justify-self-end rounded-full px-3 py-2 text-base font-semibold text-primary active:opacity-70">
                 Ferdig
               </button>
             )}
           </div>
-          <nav aria-label="Deler av appen" className="grid grid-cols-3 text-[11px] font-medium text-white/85">
+          <nav aria-label="Deler av appen" className="grid grid-cols-3 text-[11px] font-medium text-muted-foreground">
             <NavButton icon={<Sprout className="size-5" />} label="Planter" onClick={() => onNavigate("planter")} />
             <NavButton icon={<ChevronUp className="size-5" />} label="Historikk" onClick={() => onNavigate("historikk")} />
             <NavButton icon={<Sparkles className="size-5" />} label="Assistent" onClick={() => onNavigate("assistent")} />
@@ -386,7 +387,9 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
 
       {/* Gjennomgangen: bildene og svarene, over kameraet */}
       {reviewing && (
-        <div ref={reviewRef} className="pb-safe absolute inset-0 overflow-y-auto overscroll-contain bg-background text-foreground">
+        <div className="absolute inset-0 bg-background text-foreground">
+          <Frame scrollRef={reviewRef}>
+            <div className="pb-4">
           <PageHeader
             title="Identifiser"
             subtitle={mode === "sykdom" ? "Hva feiler planten?" : "Hvilken plante er dette?"}
@@ -554,6 +557,8 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
               </Card>
             )}
           </Page>
+            </div>
+          </Frame>
         </div>
       )}
 

@@ -11,7 +11,7 @@ type Props = {
 
 export function PageHeader({ title, subtitle, action, leading, className }: Props) {
   return (
-    <header className={cn("pt-safe sticky top-0 z-30 bg-background/90 backdrop-blur-xl", className)}>
+    <header className={cn("sticky top-(--header-top) z-30 rounded-t-[28px] bg-card/90 backdrop-blur-xl", className)}>
       <div className="mx-auto flex max-w-lg items-center gap-3 px-4 pt-3 pb-3">
         {leading}
         <div className="min-w-0 flex-1">

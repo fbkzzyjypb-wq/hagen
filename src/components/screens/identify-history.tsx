@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Page, EmptyState } from "@/components/page";
 import { BlobImage } from "@/components/blob-image";
+import { Frame } from "@/components/frame";
 import { db } from "@/lib/db";
 import { EMPTY } from "@/lib/hooks";
 import { formatRelative } from "@/lib/dates";
@@ -30,8 +31,8 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
     }, []) ?? EMPTY;
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <header className="pt-safe shrink-0 border-b border-border">
+    <Frame scrollRef={scrollRef}>
+      <header className="sticky top-0 z-10 rounded-t-[28px] border-b border-border bg-card/90 backdrop-blur-xl">
         <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-border" aria-hidden />
         <div className="mx-auto flex max-w-lg items-center gap-3 px-4 pt-2 pb-3">
           <div className="min-w-0 flex-1">
@@ -43,8 +44,8 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
           </Button>
         </div>
       </header>
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ touchAction: "pan-y" }}>
-        <Page className="pb-safe pt-4">
+      <div>
+        <Page className="pt-4 pb-4">
           {items.length === 0 ? (
             <EmptyState
               icon={<History className="size-6" />}
@@ -83,6 +84,6 @@ export function IdentifyHistoryPanel({ scrollRef, onClose }: { scrollRef: RefObj
           )}
         </Page>
       </div>
-    </div>
+    </Frame>
   );
 }

@@ -6,6 +6,7 @@ import { PlantsScreen } from "@/components/screens/plants";
 import { AssistantScreen } from "@/components/screens/assistant";
 import { IdentifyScreen, type ShellTarget } from "@/components/screens/identify";
 import { IdentifyHistoryPanel } from "@/components/screens/identify-history";
+import { Frame } from "@/components/frame";
 
 /** Sidene i skallet, fra venstre: plantene, kameraet (der appen starter) og assistenten. */
 type Pane = 0 | 1 | 2;
@@ -96,13 +97,6 @@ export function Shell({ vis, focusPlantId, initialQuestion }: Props) {
   useEffect(() => {
     reviewingRef.current = reviewing;
   }, [reviewing]);
-  // Mens søkeren vises, skal statuslinjen ligge rett på videoen uten stripen bak (se layout).
-  useEffect(() => {
-    const camera = pane === CAMERA && !historyOpen && !reviewing;
-    if (camera) document.documentElement.setAttribute("data-camera", "");
-    else document.documentElement.removeAttribute("data-camera");
-    return () => document.documentElement.removeAttribute("data-camera");
-  }, [pane, historyOpen, reviewing]);
   useLayoutEffect(() => {
     moveStrip(stripRef.current, pane, 0, true);
   }, [pane]);
@@ -252,7 +246,7 @@ export function Shell({ vis, focusPlantId, initialQuestion }: Props) {
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 overflow-hidden bg-black"
+      className="fixed inset-0 overflow-hidden bg-background"
       // Med mus ville et drag som starter på en lenke eller et bilde blitt til dra-og-slipp, og sveipet stoppet.
       onDragStart={(e) => e.preventDefault()}
       onClickCapture={(e) => {
@@ -267,40 +261,34 @@ export function Shell({ vis, focusPlantId, initialQuestion }: Props) {
         className="absolute inset-y-0 left-0 flex w-[300%] will-change-transform"
         style={{ transform: `translate3d(${(-initialPane * 100) / 3}%, 0, 0)` }}
       >
-        <section
-          aria-label="Planter"
-          inert={pane !== PLANTS}
-          className="relative h-full w-1/3 overflow-y-auto overscroll-contain bg-background"
-          style={{ touchAction: "pan-y" }}
-        >
-          <div className="pb-safe">
-            <PlantsScreen />
-          </div>
+        <section aria-label="Planter" inert={pane !== PLANTS} className="relative h-full w-1/3 bg-background" style={{ touchAction: "pan-y" }}>
+          <Frame>
+            <div className="pb-4">
+              <PlantsScreen />
+            </div>
+          </Frame>
         </section>
         <section
           aria-label="Identifiser"
           inert={pane !== CAMERA}
-          className="relative h-full w-1/3 overflow-hidden bg-black"
+          className="relative h-full w-1/3 overflow-hidden bg-background"
           style={{ touchAction: reviewing ? "pan-y" : "none" }}
         >
           <IdentifyScreen onNavigate={navigate} onReviewingChange={setReviewing} />
         </section>
-        <section
-          aria-label="Assistent"
-          inert={pane !== ASSISTANT}
-          className="relative h-full w-1/3 overflow-y-auto overscroll-contain bg-background"
-          style={{ touchAction: "pan-y" }}
-        >
-          <div className="pb-safe">
-            {/* Ny nøkkel når man kommer fra en plante, så samtalen starter på nytt med riktig fokus. */}
-            <AssistantScreen key={`${focusPlantId ?? ""}|${initialQuestion ?? ""}`} focusPlantId={focusPlantId} initialQuestion={initialQuestion} />
-          </div>
+        <section aria-label="Assistent" inert={pane !== ASSISTANT} className="relative h-full w-1/3 bg-background" style={{ touchAction: "pan-y" }}>
+          <Frame>
+            <div className="pb-4">
+              {/* Ny nøkkel når man kommer fra en plante, så samtalen starter på nytt med riktig fokus. */}
+              <AssistantScreen key={`${focusPlantId ?? ""}|${initialQuestion ?? ""}`} focusPlantId={focusPlantId} initialQuestion={initialQuestion} />
+            </div>
+          </Frame>
         </section>
       </div>
       <div
         ref={historyRef}
         inert={!historyOpen}
-        className="absolute inset-0 z-20 will-change-transform"
+        className="absolute inset-0 z-20 bg-background will-change-transform"
         style={{ transform: `translate3d(0, ${initialHistory ? 0 : 100}%, 0)` }}
       >
         <IdentifyHistoryPanel scrollRef={historyScrollRef} onClose={() => showHistory(false)} />

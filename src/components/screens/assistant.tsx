@@ -155,13 +155,16 @@ function ChatScreen({ transport, plants, areas, conversations, settings, focusPl
     }
   }
 
+  // Rammen fyller flaten den ligger i. Med tastaturet oppe følger den den synlige delen av skjermen, men holder seg
+  // innenfor flaten, som starter et stykke ned fra toppen (se `Frame`).
+  const frameTop = "calc(var(--safe-top) + 0.75rem)";
   const frameStyle = viewport.keyboardOpen
-    ? { top: viewport.offsetTop, height: viewport.height }
-    : { top: 0, bottom: "var(--safe-bottom)" };
+    ? { top: `max(0px, calc(${viewport.offsetTop}px - ${frameTop}))`, height: `min(${viewport.height}px, calc(${viewport.offsetTop + viewport.height}px - ${frameTop}))` }
+    : { top: 0, bottom: 0 };
 
   return (
     <>
-      <div className="absolute inset-x-0 z-10 flex flex-col bg-background" style={frameStyle}>
+      <div className="absolute inset-x-0 z-10 flex flex-col bg-card" style={frameStyle}>
         <PageHeader
           title="Assistent"
           subtitle={active ? active.title : focusPlant ? `Ny samtale om ${focusPlant.name.toLowerCase()}` : "Ny samtale"}

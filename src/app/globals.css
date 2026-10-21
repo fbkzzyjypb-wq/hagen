@@ -85,6 +85,8 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Der en PageHeader fester seg: under statuslinjen på sider som ruller, øverst i flaten der flaten selv ruller. */
+  --header-top: var(--safe-top);
 }
 
 @layer base {
@@ -114,9 +116,6 @@
   }
 }
 
-@utility pb-safe {
-  padding-bottom: calc(var(--safe-bottom) + 1rem);
-}
 @utility pt-safe {
   padding-top: var(--safe-top);
 }
