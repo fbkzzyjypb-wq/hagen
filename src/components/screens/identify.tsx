@@ -297,7 +297,7 @@ export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
 
       {/* Søkeren */}
       <div className="absolute inset-0 select-none text-white">
-        <video ref={videoRef} autoPlay playsInline muted className={cn("size-full object-cover", cameraStatus !== "live" && "invisible")} />
+        <video ref={videoRef} autoPlay playsInline muted className={cn("absolute top-0 left-0 size-full max-w-none object-cover", cameraStatus !== "live" && "invisible")} />
         {cameraStatus !== "live" && <CameraNotice status={cameraStatus} />}
         <div className={cn("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", flash ? "opacity-80" : "opacity-0")} aria-hidden />
 

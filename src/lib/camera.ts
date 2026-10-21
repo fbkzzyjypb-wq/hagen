@@ -5,6 +5,22 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 export type CameraStatus = "starting" | "live" | "denied" | "unavailable";
 
 /**
+ * Gjør videoen så stor at den dekker beholderen, midtstilt, slik `object-fit: cover` skulle gjort. iOS lar iblant
+ * kamerastrømmer stå i sin egen høyde med svarte felt over og under, så målene settes direkte i stedet.
+ */
+function fitCover(video: HTMLVideoElement) {
+  const box = video.parentElement;
+  if (!box || !video.videoWidth || !video.videoHeight) return;
+  const scale = Math.max(box.clientWidth / video.videoWidth, box.clientHeight / video.videoHeight);
+  const w = Math.ceil(video.videoWidth * scale);
+  const h = Math.ceil(video.videoHeight * scale);
+  video.style.width = `${w}px`;
+  video.style.height = `${h}px`;
+  video.style.left = `${Math.round((box.clientWidth - w) / 2)}px`;
+  video.style.top = `${Math.round((box.clientHeight - h) / 2)}px`;
+}
+
+/**
  * Levende bilde fra bakkameraet i et <video>-element. Strømmen startes når `active` er sann, stoppes når appen går i
  * bakgrunnen (så kameralampen ikke står på unødig) og startes igjen når appen kommer tilbake. iOS stopper strømmen selv
  * når et annet program tar kameraet; da startes den på nytt. `capture` gir det som vises nå som JPEG i strømmens
@@ -19,6 +35,9 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
     if (!active) return;
     let cancelled = false;
     let starting = false;
+    const fit = () => {
+      if (videoRef.current) fitCover(videoRef.current);
+    };
 
     function stop() {
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -49,6 +68,7 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
         // Avvises play() av autoplay-reglene, starter videoen likevel selv: den er stum og spilles i elementet.
         await video.play().catch(() => undefined);
         if (cancelled) return;
+        fit();
         setStatus("live");
         stream.getVideoTracks()[0]?.addEventListener("ended", () => {
           if (cancelled || streamRef.current !== stream) return;
@@ -66,11 +86,19 @@ export function useLiveCamera(active: boolean): { videoRef: RefObject<HTMLVideoE
       if (document.visibilityState === "hidden") stop();
       else void start();
     };
+    const video = videoRef.current;
     document.addEventListener("visibilitychange", onVisibility);
+    // Målene settes når strømmen kjenner sin størrelse, når den bytter (snur telefonen) og når skjermen endrer seg.
+    video?.addEventListener("loadedmetadata", fit);
+    video?.addEventListener("resize", fit);
+    window.addEventListener("resize", fit);
     if (document.visibilityState !== "hidden") void start();
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
+      video?.removeEventListener("loadedmetadata", fit);
+      video?.removeEventListener("resize", fit);
+      window.removeEventListener("resize", fit);
       stop();
     };
   }, [active]);
