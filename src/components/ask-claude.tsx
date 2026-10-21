@@ -16,13 +16,12 @@ type Props = {
   className?: string;
 };
 
-/** Lenke til Assistent-fanen, eventuelt med en plante i fokus og et ferdig spørsmål. */
+/** Lenke til assistenten på forsiden, eventuelt med en plante i fokus og et ferdig spørsmål. */
 export function assistantHref(focusPlant?: Plant, initialQuestion?: string): string {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams({ vis: "assistent" });
   if (focusPlant) params.set("plante", focusPlant.id);
   if (initialQuestion) params.set("q", initialQuestion);
-  const qs = params.toString();
-  return qs ? `/assistent/?${qs}` : "/assistent/";
+  return `/?${params.toString()}`;
 }
 
 export function AskClaudeButton({ focusPlant, initialQuestion, label, variant = "default", size = "lg", className }: Props) {

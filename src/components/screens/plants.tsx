@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { ArrowLeft, ChevronRight, ListPlus, Pencil, Plus, Search, Skull, Sprout } from "lucide-react";
+import { ArrowLeft, ChevronRight, ListPlus, Map as MapIcon, Pencil, Plus, Search, Skull, Sprout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -71,7 +71,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
   if (bedId && areas !== undefined && !activeBed) {
     return (
       <Page className="pt-16">
-        <EmptyState title="Fant ikke plasseringen" action={<Button nativeButton={false} render={<Link href="/planter/" />}>Til plantelisten</Button>} />
+        <EmptyState title="Fant ikke plasseringen" action={<Button nativeButton={false} render={<Link href="/?vis=planter" />}>Til plantelisten</Button>} />
       </Page>
     );
   }
@@ -83,13 +83,18 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
         subtitle={`${activeBed ? `${areaInfo(activeBed.kind).label} · ` : ""}${scoped.length === 1 ? "1 plante" : `${scoped.length} planter`}${totalCount > scoped.length ? ` · ${totalCount} stk` : ""}`}
         leading={
           activeBed ? (
-            <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/planter/" aria-label="Tilbake" />}>
+            <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/?vis=planter" aria-label="Tilbake" />}>
               <ArrowLeft className="size-5" />
             </Button>
           ) : undefined
         }
         action={
           <div className="flex items-center gap-1">
+            {!activeBed && settings.showMap && (
+              <Button variant="ghost" size="icon-lg" className="rounded-full" nativeButton={false} render={<Link href="/kart/" aria-label="Hagekart" />}>
+                <MapIcon className="size-5" />
+              </Button>
+            )}
             {activeBed ? (
               <Button variant="ghost" size="icon-lg" className="rounded-full" aria-label="Endre plassering" onClick={() => setBedDialog({ bed: activeBed })}>
                 <Pencil className="size-5" />
@@ -220,7 +225,7 @@ export function PlantsScreen({ bedId }: { bedId?: string }) {
         }}
         bed={bedDialog?.bed}
         onDeleted={() => {
-          if (activeBed) router.replace("/planter/");
+          if (activeBed) router.replace("/?vis=planter");
         }}
       />
       {activeBed && <BedPlantPicker open={pickerOpen} onOpenChange={setPickerOpen} bed={activeBed} plants={plants} beds={beds} />}

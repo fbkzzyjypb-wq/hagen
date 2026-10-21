@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useGesture, useDrag } from "@use-gesture/react";
-import { Maximize2, MapPin, PenLine, Undo2, X, Check, Trash2, ChevronRight, Plus, Settings, Image as ImageIcon, Move, Upload, Loader2 } from "lucide-react";
+import { ArrowLeft, Maximize2, MapPin, PenLine, Undo2, X, Check, Trash2, ChevronRight, Plus, Settings, Image as ImageIcon, Move, Upload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -341,7 +341,7 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
     <div
       ref={containerRef}
       className="fixed inset-x-0 top-0 overflow-hidden select-none"
-      style={{ bottom: "calc(var(--tabbar-height) + var(--safe-bottom))", touchAction: "none", backgroundColor: bg ? "#CFE0B4" : "#e6ecdc" }}
+      style={{ bottom: 0, touchAction: "none", backgroundColor: bg ? "#CFE0B4" : "#e6ecdc" }}
     >
       <svg className="size-full" role="img" aria-label="Hagekart">
         <g transform={`translate(${view.x} ${view.y}) scale(${s})`}>
@@ -502,12 +502,17 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
 
       {/* Toppfelt */}
       <div className="pt-safe pointer-events-none absolute inset-x-0 top-0">
-        <div className="mx-auto flex max-w-lg items-center justify-between px-4 pt-3">
-          <div className="pointer-events-auto rounded-2xl bg-background/85 px-3.5 py-2 shadow-sm ring-1 ring-foreground/10 backdrop-blur-xl">
-            <h1 className="font-heading text-lg font-semibold tracking-tight">Hagekart</h1>
-            <p className="text-[11px] text-muted-foreground">
-              {W} × {H} m · {placedCount} av {plants.length} planter plassert
-            </p>
+        <div className="mx-auto flex max-w-lg items-center justify-between gap-2 px-4 pt-3">
+          <div className="pointer-events-auto flex min-w-0 items-center gap-1.5">
+            <Button variant="outline" size="icon-lg" className="shrink-0 rounded-full bg-background/85 shadow-sm backdrop-blur-xl" nativeButton={false} render={<Link href="/?vis=planter" aria-label="Tilbake" />}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="min-w-0 rounded-2xl bg-background/85 px-3.5 py-2 shadow-sm ring-1 ring-foreground/10 backdrop-blur-xl">
+              <h1 className="font-heading text-lg font-semibold tracking-tight">Hagekart</h1>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {W} × {H} m · {placedCount} av {plants.length} planter plassert
+              </p>
+            </div>
           </div>
           <div className="pointer-events-auto flex gap-1.5">
             <Button variant="outline" size="icon-lg" className="rounded-full bg-background/85 shadow-sm backdrop-blur-xl" onClick={fit} aria-label="Tilpass">
@@ -530,7 +535,7 @@ export function MapScreen({ placePlantId, focusPlantId }: { placePlantId?: strin
       </div>
 
       {/* Bunnfelt */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-3">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-[calc(var(--safe-bottom)+0.75rem)]">
         <div className="mx-auto flex max-w-lg flex-col gap-2">
           {mode.kind === "view" && selectedPlant && (
             <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-background p-3 shadow-lg ring-1 ring-foreground/10">

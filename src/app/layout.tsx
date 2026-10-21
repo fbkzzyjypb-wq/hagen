@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { TabBar } from "@/components/tab-bar";
 import { ServiceWorkerRegistration } from "@/components/sw-register";
 import { Bootstrap } from "@/components/bootstrap";
 import { asset } from "@/lib/base-path";
@@ -39,8 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="nb" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <div className="flex-1 pb-safe-tabbar">{children}</div>
-        <TabBar />
+        <div className="flex-1 pb-safe">{children}</div>
         <ServiceWorkerRegistration />
         <Bootstrap />
       </body>

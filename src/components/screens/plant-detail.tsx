@@ -39,7 +39,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
   if (plant === null) {
     return (
       <Page className="pt-16">
-        <EmptyState title="Fant ikke planten" action={<Button nativeButton={false} render={<Link href="/planter/" />}>Til plantelisten</Button>} />
+        <EmptyState title="Fant ikke planten" action={<Button nativeButton={false} render={<Link href="/?vis=planter" />}>Til plantelisten</Button>} />
       </Page>
     );
   }
@@ -52,7 +52,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
       await db.identifications.where("plantId").equals(plant!.id).modify({ plantId: undefined });
       await db.plants.delete(plant!.id);
     });
-    router.replace("/planter/");
+    router.replace("/?vis=planter");
   }
 
   async function deletePhoto(photo: Photo) {
@@ -66,7 +66,7 @@ export function PlantDetailScreen({ id }: { id: string }) {
         title={plantTitle(plant)}
         subtitle={plant.latinName || info.label}
         leading={
-          <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/planter/" aria-label="Tilbake" />}>
+          <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/?vis=planter" aria-label="Tilbake" />}>
             <ArrowLeft className="size-5" />
           </Button>
         }

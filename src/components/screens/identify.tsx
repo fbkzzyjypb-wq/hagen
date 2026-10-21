@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Camera, Check, ChevronRight, History, ImagePlus, Info, KeyRound, Leaf, Loader2, Plus, RefreshCw, Save, Search, Sparkles, Stethoscope, X } from "lucide-react";
+import { Camera, CameraOff, Check, ChevronUp, ImagePlus, Images, Info, KeyRound, Leaf, Loader2, Plus, RefreshCw, Save, Search, Settings, Sparkles, Sprout, SquareStack, Stethoscope, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,23 +22,31 @@ import { db } from "@/lib/db";
 import { EMPTY } from "@/lib/hooks";
 import { newId } from "@/lib/id";
 import { useSettings } from "@/lib/settings";
+import { useLiveCamera, type CameraStatus } from "@/lib/camera";
 import { resolveTransport } from "@/lib/llm-client";
 import { compressImage } from "@/lib/images";
-import { formatRelative } from "@/lib/dates";
 import { enrichCandidates, inferCategory, type PlantCandidate } from "@/lib/plant-lookup";
 import { ensureIdentificationFacts, fetchCandidateFacts, withListedFacts } from "@/lib/plant-facts";
 import { diagnosePlant, identifyPlantPhotos, identifyPlantWithVision, MAX_IDENTIFY_PHOTOS, PLANT_ORGANS, type PlantOrgan } from "@/lib/plant-id";
-import { TAB_RESELECT_EVENT } from "@/components/tab-bar";
 import { plantTitle, type Identification, type Plant, type PlantFacts } from "@/lib/types";
 
+/** De andre delene av skallet som kameraet kan åpne: plantene til venstre, assistenten til høyre, historikken nedenfra. */
+export type ShellTarget = "planter" | "assistent" | "historikk";
+
 type Mode = "plante" | "sykdom";
+/** Kameraet står på, eller brukeren ser på bildene som er tatt og svarene på dem. */
+type View = "camera" | "review";
 type IdResult = { candidates: PlantCandidate[]; remaining?: number; source: "plantnet" | "ki" };
-/** En oppføring i historikken med bildet sitt hentet fra bildetabellen. */
-type HistoryItem = Identification & { photo?: Blob };
 /** Fulle plantefakta hentet for et forslag med «Hent info», før det eventuelt lagres. */
 type CandidateInfo = { status: "busy" } | { status: "done"; facts: PlantFacts } | { status: "error"; message: string };
 /** Et valgt bilde og hva det viser. Organet brukes bare av Pl@ntNet. */
 type PickedPhoto = { id: string; blob: Blob; organ: PlantOrgan };
+
+type Props = {
+  onNavigate: (target: ShellTarget) => void;
+  /** Sann mens brukeren ser på bildene og svarene. Da skal ikke sveip bytte side. */
+  onReviewingChange: (reviewing: boolean) => void;
+};
 
 /** En ny oppføring i historikken, og det første bildet nedskalert til bildetabellen. */
 async function newRecord(photo: Blob, photoCount: number, source: Identification["source"], candidates: PlantCandidate[]): Promise<{ record: Identification; photo: Blob }> {
@@ -50,18 +58,21 @@ function plainText(markdown: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-export function IdentifyScreen() {
+/**
+ * Kameraet, som appen starter i. Søkeren fyller skjermen med modusvelgeren øverst og utløseren nederst, slik man
+ * kjenner det fra Snapchat. Et trykk på utløseren tar bildet fra strømmen, spør Pl@ntNet eller KI-leverandøren med en
+ * gang og viser svaret i gjennomgangen over kameraet. Med flere bilder på (ikonet øverst til høyre, bare med Pl@ntNet)
+ * samler utløseren bilder til «Ferdig», og gjennomgangen lar deg si hva hvert bilde viser før du identifiserer. Får
+ * appen ikke bruke kameraet, åpner utløseren telefonens eget kamera i stedet.
+ */
+export function IdentifyScreen({ onNavigate, onReviewingChange }: Props) {
   const router = useRouter();
   const settings = useSettings();
   const transport = useMemo(() => resolveTransport(settings), [settings]);
   const plants = useLiveQuery(() => db.plants.orderBy("name").toArray(), []) ?? EMPTY;
-  const history =
-    useLiveQuery(async (): Promise<HistoryItem[]> => {
-      const items = await db.identifications.orderBy("createdAt").reverse().toArray();
-      const photos = await db.identificationPhotos.bulkGet(items.map((i) => i.id));
-      return items.map((item, i) => ({ ...item, photo: photos[i]?.blob }));
-    }, []) ?? EMPTY;
+  const { videoRef, status: cameraStatus, capture } = useLiveCamera(true);
 
+  const [view, setView] = useState<View>("camera");
   const [mode, setMode] = useState<Mode>("plante");
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [busy, setBusy] = useState(false);
@@ -75,20 +86,31 @@ export function IdentifyScreen() {
   const [plantId, setPlantId] = useState("");
   const [saved, setSaved] = useState(false);
   const [formInitial, setFormInitial] = useState<PlantFormInitial | null>(null);
+  /** Et kort hvitt blink når bildet tas. */
+  const [flash, setFlash] = useState(false);
+  /** Flere bilder av samme plante (bare med Pl@ntNet): utløseren samler bilder til «Ferdig» trykkes. */
+  const [multiCapture, setMultiCapture] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const captureInputRef = useRef<HTMLInputElement>(null);
+  const reviewRef = useRef<HTMLDivElement>(null);
+  const savedRecord = useLiveQuery(() => (recordId ? db.identifications.get(recordId) : undefined), [recordId]);
 
   const canIdentify = !!settings.plantNetApiKey || !!transport;
   const canDiagnose = !!transport;
   const selectedPlant = plants.find((p) => p.id === plantId);
   /** Forslaget det siste svaret er lagret som, så knappen kan vise «Lagret». */
-  const savedKey = recordId ? candidateKey(history.find((h) => h.id === recordId)?.candidates[0]) : null;
+  const savedKey = candidateKey(savedRecord?.candidates[0]);
   const assistantLabel = transport?.label ?? "Claude";
-  // Flere bilder og organvalg gjelder bare Pl@ntNet. KI-leverandøren ser på ett bilde, og det gjør sykdomsvurderingen også.
-  const multiPhoto = mode === "plante" && !!settings.plantNetApiKey;
+  // Flere bilder og organvalg gjelder bare Pl@ntNet, og bare når brukeren har slått det på. KI-leverandøren ser på ett
+  // bilde, og det gjør sykdomsvurderingen også.
+  const canMultiCapture = mode === "plante" && !!settings.plantNetApiKey;
+  const multiPhoto = canMultiCapture && multiCapture;
   const photo = photos[0]?.blob ?? null;
+  const reviewing = view === "review";
 
   useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => onReviewingChange(reviewing), [reviewing, onReviewingChange]);
 
   function cancel() {
     abortRef.current?.abort();
@@ -137,10 +159,10 @@ export function IdentifyScreen() {
     setFormInitial({ name: c.name, latinName: c.latinName, variety: c.variety, category: c.category ?? inferCategory(c.latinName), photo: photoBlob ?? undefined });
   }
 
-  /** Tilbake til start: ingen bilder og ingen svar. */
+  /** Tilbake til kameraet: ingen bilder og ingen svar. */
   function reset() {
     cancel();
-    setMode("plante");
+    setView("camera");
     setPhotos([]);
     setIdResult(null);
     setRecordId(null);
@@ -150,22 +172,13 @@ export function IdentifyScreen() {
     setSaved(false);
   }
 
-  // Et trykk på Identifiser i menyen mens skjermen alt er åpen, starter på nytt.
-  useEffect(() => {
-    const onReselect = (e: Event) => {
-      if ((e as CustomEvent<string>).detail !== "/identifiser/") return;
-      reset();
-      window.scrollTo({ top: 0 });
-    };
-    window.addEventListener(TAB_RESELECT_EVENT, onReselect);
-    return () => window.removeEventListener(TAB_RESELECT_EVENT, onReselect);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Startes bare fra knappen, så brukeren bestemmer selv når Pl@ntNet og KI-leverandøren spørres. */
-  async function analyse() {
+  /**
+   * Spør Pl@ntNet eller KI-leverandøren om bildene. Kjøres av seg selv rett etter ett enkelt bilde, og fra knappen i
+   * gjennomgangen. `list` er bildene som nettopp er satt, før `photos` har rukket å oppdatere seg.
+   */
+  async function analyse(list: PickedPhoto[] = photos) {
     cancel();
-    if (photos.length === 0) return;
+    if (list.length === 0) return;
     const ac = new AbortController();
     abortRef.current = ac;
     setError(null);
@@ -174,15 +187,15 @@ export function IdentifyScreen() {
     try {
       if (mode === "plante") {
         if (settings.plantNetApiKey) {
-          const result = await identifyPlantPhotos(settings.plantNetApiKey, photos, ac.signal);
+          const result = await identifyPlantPhotos(settings.plantNetApiKey, list, ac.signal);
           let found = result.candidates;
           if (transport && found.length > 0) found = await enrichCandidates(transport, found, ac.signal);
           if (ac.signal.aborted) return;
           found = found.map(withListedFacts);
           setIdResult({ candidates: found, remaining: result.remaining, source: "plantnet" });
-          if (found.length === 0) setError(`Pl@ntNet fant ingen plante i ${photos.length > 1 ? "bildene" : "bildet"}. Prøv et nærmere bilde av blad, blomst eller frukt.`);
+          if (found.length === 0) setError(`Pl@ntNet fant ingen plante i ${list.length > 1 ? "bildene" : "bildet"}. Prøv et nærmere bilde av blad, blomst eller frukt.`);
         } else if (transport) {
-          let found = await identifyPlantWithVision(transport, photos[0].blob, ac.signal);
+          let found = await identifyPlantWithVision(transport, list[0].blob, ac.signal);
           if (found.length > 0) found = await enrichCandidates(transport, found, ac.signal);
           if (ac.signal.aborted) return;
           found = found.map(withListedFacts);
@@ -192,7 +205,7 @@ export function IdentifyScreen() {
       } else if (transport) {
         setDiagnosis("");
         setSaved(false);
-        await diagnosePlant({ transport, file: photos[0].blob, settings, plant: selectedPlant, signal: ac.signal, onText: setDiagnosis });
+        await diagnosePlant({ transport, file: list[0].blob, settings, plant: selectedPlant, signal: ac.signal, onText: setDiagnosis });
       }
     } catch (err) {
       if (!ac.signal.aborted) setError(err instanceof Error ? err.message : "Noe gikk galt. Prøv igjen.");
@@ -201,10 +214,14 @@ export function IdentifyScreen() {
     }
   }
 
-  /** Bildene er endret: svarene gjelder ikke lenger, og et oppslag som pågår avbrytes. */
-  function changePhotos(next: PickedPhoto[]) {
+  /**
+   * Bildene er endret: svarene gjelder ikke lenger, og et oppslag som pågår avbrytes. Uten bilder er det kameraet igjen;
+   * ellers gjennomgangen, om ikke `nextView` sier noe annet (flere bilder samles i kameraet).
+   */
+  function changePhotos(next: PickedPhoto[], nextView: View = "review") {
     cancel();
     setPhotos(next);
+    setView(next.length > 0 ? nextView : "camera");
     setIdResult(null);
     setRecordId(null);
     setInfoByKey({});
@@ -213,12 +230,43 @@ export function IdentifyScreen() {
     setSaved(false);
   }
 
-  function onFile(files: FileList | null) {
-    const picked = [...(files ?? [])].map((blob): PickedPhoto => ({ id: newId(), blob, organ: "auto" }));
-    if (inputRef.current) inputRef.current.value = "";
+  /**
+   * Nye bilder, fra utløseren eller fra bildene. Med flere bilder på legges de til, opptil fem, og brukeren blir i
+   * kameraet til «Ferdig» (fra bildene, eller når det er fullt, går det rett til gjennomgangen). Ellers erstatter det
+   * nye bildet det gamle, regnes som «auto», og identifiseringen starter med en gang.
+   */
+  function addPhotos(blobs: Blob[], fromGallery = false) {
+    const picked = blobs.map((blob): PickedPhoto => ({ id: newId(), blob, organ: "auto" }));
     if (picked.length === 0) return;
-    // Med Pl@ntNet legges bildene til, opptil fem. Ellers erstatter det nye bildet det gamle.
-    changePhotos(multiPhoto ? [...photos, ...picked].slice(0, MAX_IDENTIFY_PHOTOS) : picked.slice(0, 1));
+    reviewRef.current?.scrollTo({ top: 0 });
+    if (multiPhoto) {
+      const next = [...photos, ...picked].slice(0, MAX_IDENTIFY_PHOTOS);
+      changePhotos(next, fromGallery || next.length >= MAX_IDENTIFY_PHOTOS ? "review" : "camera");
+      return;
+    }
+    const next = picked.slice(0, 1);
+    changePhotos(next);
+    void analyse(next);
+  }
+
+  function onFile(input: HTMLInputElement) {
+    const files = [...(input.files ?? [])];
+    input.value = "";
+    addPhotos(files, input === galleryInputRef.current);
+  }
+
+  /** Utløseren: et stillbilde fra strømmen. Går ikke kameraet, tar telefonens eget kamera bildet. */
+  async function shoot() {
+    if (cameraStatus !== "live") {
+      captureInputRef.current?.click();
+      return;
+    }
+    // Blinket kommer med en gang, så trykket kjennes, mens bildet kodes.
+    setFlash(true);
+    setTimeout(() => setFlash(false), 180);
+    const blob = await capture();
+    if (blob) addPhotos([blob]);
+    else captureInputRef.current?.click();
   }
 
   function switchMode(next: Mode) {
@@ -237,91 +285,171 @@ export function IdentifyScreen() {
 
   const waitingLabel = multiPhoto ? `Pl@ntNet ser på ${photos.length > 1 ? "bildene" : "bildet"} ...` : `${transport?.label ?? "KI"} ser på bildet ...`;
   const canRun = mode === "plante" ? canIdentify : canDiagnose;
+  const setupText =
+    mode === "plante"
+      ? "For å identifisere planter trenger du en gratis Pl@ntNet-nøkkel, eller en KI-leverandør med en modell som tåler bilder (Gemini Flash)."
+      : "For å vurdere sykdom trenger du en KI-leverandør med en modell som tåler bilder, for eksempel Gemini Flash.";
 
   return (
     <>
-      <PageHeader title="Identifiser" subtitle={mode === "sykdom" ? "Hva feiler planten?" : "Hvilken plante er dette?"} />
-      <Page className="flex flex-col gap-4">
-        <Tabs value={mode} onValueChange={(v) => switchMode(v as Mode)}>
-          <TabsList className="w-full">
-            <TabsTrigger value="plante" className="flex-1">
-              <Leaf className="size-4" /> Hvilken plante?
-            </TabsTrigger>
-            <TabsTrigger value="sykdom" className="flex-1">
-              <Stethoscope className="size-4" /> Hva feiler den?
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <input ref={galleryInputRef} type="file" accept="image/*" multiple={multiPhoto} className="hidden" onChange={(e) => onFile(e.currentTarget)} />
+      <input ref={captureInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onFile(e.currentTarget)} />
 
-        <input ref={inputRef} type="file" accept="image/*" multiple={multiPhoto} className="hidden" onChange={(e) => onFile(e.target.files)} />
+      {/* Søkeren */}
+      <div className="absolute inset-0 select-none text-white">
+        <video ref={videoRef} autoPlay playsInline muted className={cn("size-full object-cover", cameraStatus !== "live" && "invisible")} />
+        {cameraStatus !== "live" && <CameraNotice status={cameraStatus} />}
+        <div className={cn("pointer-events-none absolute inset-0 bg-white transition-opacity duration-200", flash ? "opacity-80" : "opacity-0")} aria-hidden />
 
-        {mode === "sykdom" && (
-          <Field label="Hvilken plante gjelder det?" htmlFor="identify-plant" hint="Valgfritt, men gir et mer treffsikkert svar, og lar deg lagre bildet på planten.">
-            <NativeSelect id="identify-plant" value={plantId} onChange={(e) => setPlantId(e.target.value)}>
-              <option value="">Ikke valgt</option>
-              {plants.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {plantTitle(p)}
-                </option>
-              ))}
-            </NativeSelect>
-          </Field>
-        )}
+        <div className="pt-safe absolute inset-x-0 top-0 bg-gradient-to-b from-black/60 to-transparent pb-10">
+          <div className="relative mx-auto flex max-w-lg items-center justify-center px-4 pt-3">
+            <div role="tablist" aria-label="Hva vil du vite?" className="flex rounded-full bg-black/40 p-1 backdrop-blur-md">
+              <ModeButton active={mode === "plante"} onClick={() => switchMode("plante")}>
+                <Leaf className="size-4" /> Hvilken plante?
+              </ModeButton>
+              <ModeButton active={mode === "sykdom"} onClick={() => switchMode("sykdom")}>
+                <Stethoscope className="size-4" /> Hva feiler den?
+              </ModeButton>
+            </div>
+            <div className="absolute top-3 right-4 flex flex-col gap-2">
+              <Link href="/innstillinger/" aria-label="Innstillinger" className="flex size-10 items-center justify-center rounded-full bg-black/40 backdrop-blur-md active:bg-black/60">
+                <Settings className="size-5" />
+              </Link>
+              {canMultiCapture && (
+                <button
+                  type="button"
+                  aria-pressed={multiCapture}
+                  aria-label="Flere bilder av samme plante"
+                  onClick={() => setMultiCapture((v) => !v)}
+                  className={cn("flex size-10 items-center justify-center rounded-full backdrop-blur-md transition-colors", multiCapture ? "bg-white text-foreground" : "bg-black/40 active:bg-black/60")}
+                >
+                  <SquareStack className="size-5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
-        {photos.length > 0 ? (
-          <ul className={cn("grid gap-2", photos.length > 1 && "grid-cols-2")}>
-            {photos.map((p, i) => (
-              <li key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card">
-                <div className={cn("relative bg-muted", photos.length > 1 ? "aspect-square" : "aspect-[4/3]")}>
-                  <BlobImage blob={p.blob} alt={`Bilde ${i + 1}`} className="size-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => changePhotos(photos.filter((x) => x.id !== p.id))}
-                    aria-label={`Fjern bilde ${i + 1}`}
-                    className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-black/55 text-white active:bg-black/75"
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
-                {multiPhoto && (
-                  <div className="flex flex-wrap gap-1 p-2" role="group" aria-label={`Hva viser bilde ${i + 1}?`}>
-                    {PLANT_ORGANS.map((o) => (
-                      <button
-                        key={o.value}
-                        type="button"
-                        aria-pressed={p.organ === o.value}
-                        onClick={() => p.organ !== o.value && changePhotos(photos.map((x) => (x.id === p.id ? { ...x, organ: o.value } : x)))}
-                        className={cn(
-                          "rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors",
-                          p.organ === o.value ? "border-primary bg-accent text-accent-foreground" : "border-border bg-card hover:bg-muted"
-                        )}
-                      >
-                        {o.label}
-                      </button>
-                    ))}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/35 to-transparent pt-12" style={{ paddingBottom: "var(--safe-bottom)" }}>
+          <div className="mx-auto flex max-w-lg flex-col gap-4 px-6 pb-2">
+            {!canRun && <SetupNotice text={setupText} tone="overlay" />}
+            {photos.length > 0 ? (
+              <button type="button" onClick={() => setView("review")} className="flex items-center gap-2 self-center rounded-full bg-black/45 py-1.5 pr-4 pl-1.5 text-sm font-medium backdrop-blur-md active:bg-black/65">
+                <span className="flex">
+                  {photos.map((p, i) => (
+                    <BlobImage key={p.id} blob={p.blob} alt="" className={cn("size-8 rounded-full border-2 border-white/80 object-cover", i > 0 && "-ml-2")} />
+                  ))}
+                </span>
+                {photos.length === 1 ? "1 bilde" : `${photos.length} bilder`}
+              </button>
+            ) : (
+              multiPhoto && <p className="self-center rounded-full bg-black/45 px-4 py-1.5 text-center text-sm backdrop-blur-md">Ta opptil {MAX_IDENTIFY_PHOTOS} bilder av planten, og trykk Ferdig.</p>
+            )}
+            <div className="grid grid-cols-3 items-center">
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                aria-label="Velg fra bilder"
+                className="flex size-12 items-center justify-center justify-self-start rounded-full bg-black/40 backdrop-blur-md active:bg-black/60"
+              >
+                <Images className="size-6" />
+              </button>
+              <button
+                type="button"
+                onClick={shoot}
+                aria-label={mode === "plante" ? "Ta bilde av planten" : "Ta bilde av det som feiler"}
+                className="flex size-[76px] items-center justify-center justify-self-center rounded-full border-4 border-white transition-transform active:scale-90"
+              >
+                <span className="size-[60px] rounded-full bg-white/90" />
+              </button>
+              {photos.length > 0 && (
+                <button type="button" onClick={() => setView("review")} className="justify-self-end rounded-full px-3 py-2 text-base font-semibold active:opacity-70">
+                  Ferdig
+                </button>
+              )}
+            </div>
+            <nav aria-label="Deler av appen" className="grid grid-cols-3 text-[11px] font-medium text-white/85">
+              <NavButton icon={<Sprout className="size-5" />} label="Planter" onClick={() => onNavigate("planter")} />
+              <NavButton icon={<ChevronUp className="size-5" />} label="Historikk" onClick={() => onNavigate("historikk")} />
+              <NavButton icon={<Sparkles className="size-5" />} label="Assistent" onClick={() => onNavigate("assistent")} />
+            </nav>
+          </div>
+        </div>
+      </div>
+
+      {/* Gjennomgangen: bildene og svarene, over kameraet */}
+      {reviewing && (
+        <div ref={reviewRef} className="pb-safe absolute inset-0 overflow-y-auto overscroll-contain bg-background text-foreground">
+          <PageHeader
+            title="Identifiser"
+            subtitle={mode === "sykdom" ? "Hva feiler planten?" : "Hvilken plante er dette?"}
+            leading={
+              <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" aria-label="Tilbake til kameraet" onClick={reset}>
+                <X className="size-5" />
+              </Button>
+            }
+          />
+          <Page className="flex flex-col gap-4">
+            <Tabs value={mode} onValueChange={(v) => switchMode(v as Mode)}>
+              <TabsList className="w-full">
+                <TabsTrigger value="plante" className="flex-1">
+                  <Leaf className="size-4" /> Hvilken plante?
+                </TabsTrigger>
+                <TabsTrigger value="sykdom" className="flex-1">
+                  <Stethoscope className="size-4" /> Hva feiler den?
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {mode === "sykdom" && (
+              <Field label="Hvilken plante gjelder det?" htmlFor="identify-plant" hint="Valgfritt, men gir et mer treffsikkert svar, og lar deg lagre bildet på planten.">
+                <NativeSelect id="identify-plant" value={plantId} onChange={(e) => setPlantId(e.target.value)}>
+                  <option value="">Ikke valgt</option>
+                  {plants.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {plantTitle(p)}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+            )}
+
+            <ul className={cn("grid gap-2", photos.length > 1 && "grid-cols-2")}>
+              {photos.map((p, i) => (
+                <li key={p.id} className="overflow-hidden rounded-2xl border border-border bg-card">
+                  <div className={cn("relative bg-muted", photos.length > 1 ? "aspect-square" : "aspect-[4/3]")}>
+                    <BlobImage blob={p.blob} alt={`Bilde ${i + 1}`} className="size-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => changePhotos(photos.filter((x) => x.id !== p.id))}
+                      aria-label={`Fjern bilde ${i + 1}`}
+                      className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-black/55 text-white active:bg-black/75"
+                    >
+                      <X className="size-4" />
+                    </button>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="flex flex-col items-center rounded-2xl border border-dashed border-border bg-card px-6 py-10 text-center active:bg-muted/60"
-          >
-            <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-accent text-accent-foreground">
-              <Camera className="size-7" />
-            </span>
-            <span className="font-medium">Ta bilde eller velg fra bilder</span>
-            <span className="mt-1 max-w-xs text-sm text-muted-foreground">
-              {mode === "plante" ? "Nærbilde av blad, blomst eller frukt gir best treff." : "Ta bildet nært det som ser galt ut: flekker, blader eller skudd."}
-            </span>
-          </button>
-        )}
+                  {multiPhoto && (
+                    <div className="flex flex-wrap gap-1 p-2" role="group" aria-label={`Hva viser bilde ${i + 1}?`}>
+                      {PLANT_ORGANS.map((o) => (
+                        <button
+                          key={o.value}
+                          type="button"
+                          aria-pressed={p.organ === o.value}
+                          onClick={() => p.organ !== o.value && changePhotos(photos.map((x) => (x.id === p.id ? { ...x, organ: o.value } : x)))}
+                          className={cn(
+                            "rounded-full border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                            p.organ === o.value ? "border-primary bg-accent text-accent-foreground" : "border-border bg-card hover:bg-muted"
+                          )}
+                        >
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
 
-        {photos.length > 0 && (
-          <>
             {multiPhoto && (
               <p className="-mt-2 px-1 text-xs text-muted-foreground">
                 Opptil {MAX_IDENTIFY_PHOTOS} bilder av samme plante. Flere bilder, og riktig valg av hva de viser, gir sikrere treff. Auto lar Pl@ntNet avgjøre det selv.
@@ -330,105 +458,97 @@ export function IdentifyScreen() {
             {!multiPhoto && photos.length > 1 && <p className="-mt-2 px-1 text-xs text-muted-foreground">Her brukes bare det første bildet.</p>}
             <div className="flex gap-2">
               {multiPhoto ? (
-                <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" disabled={photos.length >= MAX_IDENTIFY_PHOTOS} onClick={() => inputRef.current?.click()}>
+                <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" disabled={photos.length >= MAX_IDENTIFY_PHOTOS} onClick={() => setView("camera")}>
                   <ImagePlus data-icon="inline-start" /> Legg til bilde
                 </Button>
               ) : (
-                <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" onClick={() => inputRef.current?.click()}>
+                <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" onClick={reset}>
                   <Camera data-icon="inline-start" /> Nytt bilde
                 </Button>
               )}
               {canRun && (
-                <Button className="h-11 flex-1 rounded-xl" disabled={busy} onClick={analyse}>
+                <Button className="h-11 flex-1 rounded-xl" disabled={busy} onClick={() => analyse()}>
                   {busy ? (
                     <Loader2 className="animate-spin" data-icon="inline-start" />
+                  ) : (mode === "plante" ? idResult : diagnosis) ? (
+                    <RefreshCw data-icon="inline-start" />
                   ) : mode === "plante" ? (
                     <Search data-icon="inline-start" />
-                  ) : diagnosis ? (
-                    <RefreshCw data-icon="inline-start" />
                   ) : (
                     <Stethoscope data-icon="inline-start" />
                   )}
-                  {mode === "plante" ? "Identifiser" : diagnosis ? "Analyser på nytt" : "Analyser"}
+                  {mode === "plante" ? (idResult ? "Identifiser på nytt" : "Identifiser") : diagnosis ? "Analyser på nytt" : "Analyser"}
                 </Button>
               )}
             </div>
-          </>
-        )}
 
-        {mode === "plante" && !canIdentify && (
-          <SetupNotice text="For å identifisere planter trenger du en gratis Pl@ntNet-nøkkel, eller en KI-leverandør med en modell som tåler bilder (Gemini Flash)." />
-        )}
-        {mode === "sykdom" && !canDiagnose && <SetupNotice text="For å vurdere sykdom trenger du en KI-leverandør med en modell som tåler bilder, for eksempel Gemini Flash." />}
+            {!canRun && <SetupNotice text={setupText} />}
 
-        {busy && (mode === "plante" || !diagnosis) && (
-          <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" /> {waitingLabel}
-          </p>
-        )}
-        {error && <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+            {busy && (mode === "plante" || !diagnosis) && (
+              <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> {waitingLabel}
+              </p>
+            )}
+            {error && <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
-        {mode === "plante" && idResult && idResult.candidates.length > 0 && (
-          <div className="flex flex-col gap-2">
-            <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Forslag</p>
-            {idResult.candidates.map((c, i) => (
-              <CandidateCard
-                key={`${candidateKey(c)}|${i}`}
-                candidate={c}
-                plants={plants}
-                zone={settings.climateZone}
-                assistantLabel={assistantLabel}
-                saved={savedKey !== null && candidateKey(c) === savedKey}
-                lookup={infoByKey[candidateKey(c) ?? ""]}
-                onFetchInfo={transport ? () => fetchInfo(c) : undefined}
-                onSave={() =>
-                  saveChoice(c)
-                    .then(() => {
-                      // Lagret: tilbake til start, der oppføringen nå ligger øverst i historikken.
-                      reset();
-                      window.scrollTo({ top: 0 });
-                    })
-                    .catch(() => setError("Kunne ikke lagre identifiseringen. Prøv igjen."))
-                }
-                onAdd={() => startAdd(c, photo)}
-              />
-            ))}
-            {!transport && idResult.candidates.some((c) => !c.facts) && <FactsHint />}
-            {idResult.remaining !== undefined && <p className="px-1 text-[11px] text-muted-foreground">{idResult.remaining} oppslag igjen hos Pl@ntNet i dag.</p>}
-          </div>
-        )}
-
-        {mode === "sykdom" && diagnosis && (
-          <Card className="gap-3 px-4">
-            <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Sparkles className="size-3.5" /> Vurdering fra {transport?.label}
-              {selectedPlant ? ` · ${plantTitle(selectedPlant)}` : ""}
-            </p>
-            <SimpleMarkdown text={diagnosis} className="text-[15px] leading-relaxed" />
-            {!busy && (
-              <div className="flex flex-col gap-2 border-t border-border pt-3">
-                {selectedPlant && (
-                  <Button variant="outline" className="h-10 rounded-xl bg-card" disabled={saved} onClick={savePhotoToPlant}>
-                    {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
-                    {saved ? `Lagret på ${plantTitle(selectedPlant)}` : `Lagre bildet og vurderingen på ${plantTitle(selectedPlant)}`}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className="h-10 rounded-xl bg-card"
-                  nativeButton={false}
-                  render={<Link href={assistantHref(selectedPlant, `Jeg har fått denne vurderingen av et bilde${selectedPlant ? ` av ${selectedPlant.name.toLowerCase()}` : ""}: ${plainText(diagnosis, 400)} Hva bør jeg gjøre videre?`)} />}
-                >
-                  <Sparkles data-icon="inline-start" /> Spør videre i assistenten
-                </Button>
+            {mode === "plante" && idResult && idResult.candidates.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Forslag</p>
+                {idResult.candidates.map((c, i) => (
+                  <CandidateCard
+                    key={`${candidateKey(c)}|${i}`}
+                    candidate={c}
+                    plants={plants}
+                    zone={settings.climateZone}
+                    assistantLabel={assistantLabel}
+                    saved={savedKey !== null && candidateKey(c) === savedKey}
+                    lookup={infoByKey[candidateKey(c) ?? ""]}
+                    onFetchInfo={transport ? () => fetchInfo(c) : undefined}
+                    onSave={() =>
+                      saveChoice(c)
+                        // Lagret: tilbake til kameraet. Oppføringen ligger nå øverst i historikken.
+                        .then(reset)
+                        .catch(() => setError("Kunne ikke lagre identifiseringen. Prøv igjen."))
+                    }
+                    onAdd={() => startAdd(c, photo)}
+                  />
+                ))}
+                {!transport && idResult.candidates.some((c) => !c.facts) && <FactsHint />}
+                {idResult.remaining !== undefined && <p className="px-1 text-[11px] text-muted-foreground">{idResult.remaining} oppslag igjen hos Pl@ntNet i dag.</p>}
               </div>
             )}
-            <p className="text-[11px] text-muted-foreground">KI kan ta feil. Er du usikker, sjekk med et hagesenter.</p>
-          </Card>
-        )}
 
-        {mode === "plante" && photos.length === 0 && history.length > 0 && <HistoryList items={history} plants={plants} />}
-      </Page>
+            {mode === "sykdom" && diagnosis && (
+              <Card className="gap-3 px-4">
+                <p className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Sparkles className="size-3.5" /> Vurdering fra {transport?.label}
+                  {selectedPlant ? ` · ${plantTitle(selectedPlant)}` : ""}
+                </p>
+                <SimpleMarkdown text={diagnosis} className="text-[15px] leading-relaxed" />
+                {!busy && (
+                  <div className="flex flex-col gap-2 border-t border-border pt-3">
+                    {selectedPlant && (
+                      <Button variant="outline" className="h-10 rounded-xl bg-card" disabled={saved} onClick={savePhotoToPlant}>
+                        {saved ? <Check data-icon="inline-start" /> : <Save data-icon="inline-start" />}
+                        {saved ? `Lagret på ${plantTitle(selectedPlant)}` : `Lagre bildet og vurderingen på ${plantTitle(selectedPlant)}`}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      className="h-10 rounded-xl bg-card"
+                      nativeButton={false}
+                      render={<Link href={assistantHref(selectedPlant, `Jeg har fått denne vurderingen av et bilde${selectedPlant ? ` av ${selectedPlant.name.toLowerCase()}` : ""}: ${plainText(diagnosis, 400)} Hva bør jeg gjøre videre?`)} />}
+                    >
+                      <Sparkles data-icon="inline-start" /> Spør videre i assistenten
+                    </Button>
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">KI kan ta feil. Er du usikker, sjekk med et hagesenter.</p>
+              </Card>
+            )}
+          </Page>
+        </div>
+      )}
 
       <PlantForm
         open={formInitial !== null}
@@ -446,42 +566,47 @@ export function IdentifyScreen() {
   );
 }
 
-/** Tidligere identifiseringer, nyeste først. Hver åpnes som egen side. */
-function HistoryList({ items, plants }: { items: HistoryItem[]; plants: Plant[] }) {
+/** Mens kameraet starter, og når appen ikke får bruke det. Utløseren tar da bildet med telefonens eget kamera. */
+function CameraNotice({ status }: { status: CameraStatus }) {
   return (
-    <div className="flex flex-col gap-2">
-      <p className="inline-flex items-center gap-1.5 px-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        <History className="size-3.5" /> Tidligere identifiseringer
-      </p>
-      <Card className="py-0">
-        <ul className="divide-y divide-border">
-          {items.map((h) => {
-            const top = h.candidates[0];
-            const added = h.plantId ? plants.find((p) => p.id === h.plantId) : undefined;
-            return (
-              <li key={h.id}>
-                <Link href={`/identifisering/?id=${h.id}`} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                  <BlobImage blob={h.photo} alt="" className="size-12 shrink-0 rounded-lg bg-muted object-cover" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-medium">{top?.name ?? "Ingen treff"}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {top?.latinName && <span className="italic">{top.latinName} · </span>}
-                      {formatRelative(h.createdAt)}
-                    </span>
-                    {added && (
-                      <span className="mt-0.5 inline-flex items-center gap-1 text-xs font-medium text-primary">
-                        <Check className="size-3" /> I hagen som {plantTitle(added)}
-                      </span>
-                    )}
-                  </span>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-10 text-center">
+      {status === "starting" ? (
+        <Loader2 className="size-8 animate-spin text-white/70" />
+      ) : (
+        <>
+          <span className="flex size-14 items-center justify-center rounded-full bg-white/10">
+            <CameraOff className="size-7 text-white/80" />
+          </span>
+          <p className="font-medium">{status === "denied" ? "Appen fikk ikke bruke kameraet" : "Fant ikke noe kamera"}</p>
+          <p className="text-sm text-white/70">
+            {status === "denied" ? "Gi Hagen tilgang til kameraet i innstillingene på telefonen, eller trykk på utløseren for å ta bildet med telefonens kamera." : "Trykk på utløseren for å ta bildet med telefonens kamera, eller velg fra bildene dine."}
+          </p>
+        </>
+      )}
     </div>
+  );
+}
+
+function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn("flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors", active ? "bg-white text-foreground" : "text-white/85")}
+    >
+      {children}
+    </button>
+  );
+}
+
+function NavButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="flex flex-col items-center gap-0.5 py-1 active:opacity-70">
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -582,15 +707,20 @@ function CandidateCard({
   );
 }
 
-function SetupNotice({ text }: { text: string }) {
+/** Peker til innstillingene når det mangler nøkkel. `overlay` er varianten over kameraet, på mørk bunn. */
+function SetupNotice({ text, tone = "card" }: { text: string; tone?: "card" | "overlay" }) {
+  const overlay = tone === "overlay";
   return (
-    <Link href="/innstillinger/" className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+    <Link
+      href="/innstillinger/"
+      className={cn("flex items-center gap-3 rounded-2xl px-4 py-3", overlay ? "bg-black/50 text-white backdrop-blur-md" : "border border-border bg-card")}
+    >
+      <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-full", overlay ? "bg-white/15" : "bg-accent text-accent-foreground")}>
         <KeyRound className="size-5" />
       </span>
       <span className="min-w-0 flex-1 text-sm">
         <span className="block font-medium">Sett opp i innstillinger</span>
-        <span className="block text-xs text-muted-foreground">{text}</span>
+        <span className={cn("block text-xs", overlay ? "text-white/75" : "text-muted-foreground")}>{text}</span>
       </span>
     </Link>
   );

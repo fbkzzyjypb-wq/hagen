@@ -27,8 +27,8 @@ import { plantTitle, type Identification } from "@/lib/types";
 type Item = Identification & { photo?: Blob };
 
 /**
- * En lagret identifisering som egen side, slik en plante i hagen har sin: da tar tilbake-sveipet deg til Identifiser
- * og ikke ut av fanen. Lagt opp som en planteside: bildet, navnet i stor skrift med «Legg til i hagen» øverst til
+ * En lagret identifisering som egen side, slik en plante i hagen har sin: da tar tilbake-sveipet deg til historikken
+ * over kameraet. Lagt opp som en planteside: bildet, navnet i stor skrift med «Legg til i hagen» øverst til
  * høyre, referansebilder, kortfakta og hvor sikkert treffet var, så assistenten og plantefaktaene i eget kort.
  */
 export function IdentificationScreen({ id }: { id: string }) {
@@ -74,7 +74,7 @@ export function IdentificationScreen({ id }: { id: string }) {
   if (item === null) {
     return (
       <Page className="pt-16">
-        <EmptyState title="Fant ikke identifiseringen" action={<Button nativeButton={false} render={<Link href="/identifiser/" />}>Til Identifiser</Button>} />
+        <EmptyState title="Fant ikke identifiseringen" action={<Button nativeButton={false} render={<Link href="/?vis=historikk" />}>Til historikken</Button>} />
       </Page>
     );
   }
@@ -95,7 +95,7 @@ export function IdentificationScreen({ id }: { id: string }) {
       await db.identifications.delete(id);
       await db.identificationPhotos.delete(id);
     });
-    router.replace("/identifiser/");
+    router.replace("/?vis=historikk");
   }
 
   return (
@@ -104,7 +104,7 @@ export function IdentificationScreen({ id }: { id: string }) {
         title="Identifisering"
         subtitle={`${formatDate(item.createdAt)} · ${item.source === "plantnet" ? "Pl@ntNet" : "KI"}`}
         leading={
-          <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/identifiser/" aria-label="Tilbake til Identifiser" />}>
+          <Button variant="ghost" size="icon-lg" className="-ml-2 rounded-full" nativeButton={false} render={<Link href="/?vis=historikk" aria-label="Tilbake til historikken" />}>
             <ArrowLeft className="size-5" />
           </Button>
         }
@@ -170,7 +170,7 @@ export function IdentificationScreen({ id }: { id: string }) {
           </>
         )}
         <div className="flex gap-2">
-          <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" nativeButton={false} render={<Link href="/identifiser/" />}>
+          <Button variant="outline" className="h-11 flex-1 rounded-xl bg-card" nativeButton={false} render={<Link href="/" />}>
             <Camera data-icon="inline-start" /> Ny identifisering
           </Button>
           <Button variant="outline" className="h-11 rounded-xl bg-card text-destructive" onClick={() => setDeleteOpen(true)}>

@@ -157,11 +157,11 @@ function ChatScreen({ transport, plants, areas, conversations, settings, focusPl
 
   const frameStyle = viewport.keyboardOpen
     ? { top: viewport.offsetTop, height: viewport.height }
-    : { top: 0, bottom: "calc(var(--tabbar-height) + var(--safe-bottom))" };
+    : { top: 0, bottom: "var(--safe-bottom)" };
 
   return (
     <>
-      <div className="fixed inset-x-0 z-10 flex flex-col bg-background" style={frameStyle}>
+      <div className="absolute inset-x-0 z-10 flex flex-col bg-background" style={frameStyle}>
         <PageHeader
           title="Assistent"
           subtitle={active ? active.title : focusPlant ? `Ny samtale om ${focusPlant.name.toLowerCase()}` : "Ny samtale"}

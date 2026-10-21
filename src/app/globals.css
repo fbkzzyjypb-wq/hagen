@@ -85,7 +85,6 @@
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --tabbar-height: 3.75rem;
 }
 
 @layer base {
@@ -115,8 +114,8 @@
   }
 }
 
-@utility pb-safe-tabbar {
-  padding-bottom: calc(var(--tabbar-height) + var(--safe-bottom) + 1rem);
+@utility pb-safe {
+  padding-bottom: calc(var(--safe-bottom) + 1rem);
 }
 @utility pt-safe {
   padding-top: var(--safe-top);
