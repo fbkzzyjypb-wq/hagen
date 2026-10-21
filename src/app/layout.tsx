@@ -43,6 +43,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="nb" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <div className="flex-1">{children}</div>
+        {/*
+          Stripe bak statuslinjen når innholdet går under den (iOS-skallet, og en web-app som ble lagt til mens
+          statuslinjen var gjennomsiktig). Da er teksten i linjen hvit, og trenger en mørk bunn. Med vanlig statuslinje
+          er innholdet under linjen, høyden null og stripen borte.
+        */}
+        <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-60 h-(--safe-top) bg-primary" />
         <ServiceWorkerRegistration />
         <Bootstrap />
       </body>

@@ -32,6 +32,11 @@ jobs:
           else
             echo "NEXT_PUBLIC_BASE_PATH=/${{ github.event.repository.name }}" >> "$GITHUB_ENV"
           fi
+      - name: Stamp the build
+        # Vises under «Om appen» i innstillingene, så man kan se hvilken versjon telefonen kjører.
+        run: |
+          echo "NEXT_PUBLIC_BUILD=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%MZ)" >> "$GITHUB_ENV"
       - run: npm run build
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3

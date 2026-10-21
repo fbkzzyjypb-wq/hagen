@@ -12,6 +12,8 @@ import { PageHeader } from "@/components/page-header";
 import { Page, Section } from "@/components/page";
 import { Field, NativeSelect } from "@/components/fields";
 import { db } from "@/lib/db";
+import { useClientValue } from "@/lib/hooks";
+import { formatDate } from "@/lib/dates";
 import { saveSettings } from "@/lib/settings";
 import { CLIMATE_ZONES, DEFAULT_SETTINGS, type Settings } from "@/lib/types";
 import { exportAll, importAll, shareOrDownload } from "@/lib/export";
@@ -427,12 +429,38 @@ function SettingsForm({ settings }: { settings: Settings }) {
         <Section title="Om appen">
           <Card className="gap-2 px-4 text-sm text-muted-foreground">
             <p className="flex items-center gap-2 text-foreground">
-              <CheckCircle2 className="size-4 text-primary" /> Hagen, versjon 0.1
+              <CheckCircle2 className="size-4 text-primary" /> Hagen, versjon {BUILD ?? "utviklingsbygg"}
+              {BUILT_AT ? ` · bygget ${formatDate(Date.parse(BUILT_AT), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}
             </p>
+            <AppDisplay />
             <p>Bilder og data lagres på telefonen. Har du satt opp KI-leverandør eller Pl@ntNet, sendes planteopplysninger, spørsmål og bildene du identifiserer dit.</p>
           </Card>
         </Section>
       </Page>
     </>
+  );
+}
+
+/** Stemplet av byggejobben på GitHub, så man ser hvilken versjon telefonen kjører. Tomt lokalt. */
+const BUILD = process.env.NEXT_PUBLIC_BUILD || undefined;
+const BUILT_AT = process.env.NEXT_PUBLIC_BUILD_TIME || undefined;
+
+/**
+ * Hvordan appen vises akkurat nå: som app fra Hjem-skjermen eller i nettleseren, og om innholdet går under
+ * statuslinjen. Til feilsøking av statuslinjen, som iOS lagrer innstillingen for når appen legges til.
+ */
+function AppDisplay() {
+  const value = useClientValue(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
+    const safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0;
+    return `${standalone ? "app" : "browser"}|${Math.round(safeTop)}`;
+  }, "");
+  if (!value) return null;
+  const [where, safeTop] = value.split("|");
+  return (
+    <p>
+      {where === "app" ? "Vises som app fra Hjem-skjermen." : "Vises i nettleseren."}{" "}
+      {Number(safeTop) > 0 ? `Innholdet går under statuslinjen (${safeTop} px).` : "Innholdet starter under statuslinjen."}
+    </p>
   );
 }
