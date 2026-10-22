@@ -437,6 +437,11 @@ function SettingsForm({ settings }: { settings: Settings }) {
             </p>
             <AppDisplay />
             <p>Bilder og data lagres på telefonen. Har du satt opp KI-leverandør eller Pl@ntNet, sendes planteopplysninger, spørsmål og bildene du identifiserer dit.</p>
+            <p>
+              <Link href="/privacy-policy" className="font-medium text-primary underline-offset-2 hover:underline">
+                Personvernerklæring
+              </Link>
+            </p>
           </Card>
         </Section>
       </Page>
